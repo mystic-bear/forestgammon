@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>숲속의 백개먼 (Ver 9.0 - Cube UI Fix)</title>
+    <title>숲속의 백개먼 (PvP Fixed)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -271,8 +271,7 @@
 
 <script>
 /**
- * Forest Backgammon - Ver 9.0
- * Fixes: Cube UI update on new round, Hint text restored
+ * Forest Backgammon - Ver 9.1 (PvP Fixed)
  */
 
 const P1 = 1; // White (Rabbit)
@@ -345,10 +344,8 @@ class Backgammon {
         this.bar = { [P1]: 0, [P2]: 0 };
         this.off = { [P1]: 0, [P2]: 0 };
         this.history = [];
-        
-        // Reset Cube
-        this.cube = 1; 
-        this.cubeOwner = 0;
+        this.cube = 1; this.cubeOwner = 0;
+        this.hintMove = null;
 
         this.add(P1, 1, 2); this.add(P1, 12, 5); this.add(P1, 17, 3); this.add(P1, 19, 5);
         this.add(P2, 24, 2); this.add(P2, 13, 5); this.add(P2, 8, 3); this.add(P2, 6, 5);
@@ -359,7 +356,7 @@ class Backgammon {
         
         ui.updateBoard();
         ui.updateInfo();
-        ui.updateScore(); // Fix: Update Cube UI on new round
+        ui.updateScore(); 
         ui.setPhase('ROLL');
         ui.updateDice('?', '?');
     }
@@ -544,19 +541,29 @@ class Backgammon {
         }
     }
 
+    // --- Double Handling (PvP & PvE) ---
     humanOfferDouble() {
-        if(this.turn !== P1) return;
-        let take = ai.decideTake(this.cube * 2);
-        if (take) {
-            this.cube *= 2;
-            this.cubeOwner = P2; 
-            ui.updateScore();
-            ui.toast("AI가 더블을 수락했습니다!");
-            ui.toggleRollBtn(true);
-            ui.toggleDoubleBtn(false);
+        // PvP Check First
+        if (!this.isPvP && this.turn !== P1) return; // Block P2 in PvE
+
+        if (this.isPvP) {
+            // PvP Logic: Show modal to opponent
+            let opponentName = (this.turn === P1) ? "🐻 P2" : "🐰 P1";
+            ui.showModal('double', `${opponentName}, 더블을 받으시겠습니까?`);
         } else {
-            ui.toast("AI가 포기했습니다. 당신의 승리!");
-            this.finishGame(true);
+            // PvE Logic
+            let take = ai.decideTake(this.cube * 2);
+            if (take) {
+                this.cube *= 2;
+                this.cubeOwner = P2; 
+                ui.updateScore();
+                ui.toast("AI가 더블을 수락했습니다!");
+                ui.toggleRollBtn(true);
+                ui.toggleDoubleBtn(false);
+            } else {
+                ui.toast("AI가 포기했습니다. 당신의 승리!");
+                this.finishGame(true);
+            }
         }
     }
 
@@ -568,13 +575,25 @@ class Backgammon {
         ui.hide('modal-double');
         if (isTake) {
             this.cube *= 2;
-            this.cubeOwner = P1;
+            // Ownership goes to the player who ACCEPTED the double
+            // In PvP: If P1 turn, P2 accepted -> P2 owns.
+            // In PvE: AI offered (during P2 turn), Human accepted -> P1 owns.
+            // Logic: Opposite of current turn player
+            this.cubeOwner = (this.turn === P1) ? P2 : P1;
+            
             ui.updateScore();
             ui.toast("더블 수락! 주사위를 굴리세요.");
-            if(this.turn === P1) ui.setPhase('ROLL');
-            else setTimeout(() => this.rollDice(), 1000); 
+            
+            // If it's PvP, the turn player continues to roll.
+            // If it's PvE, AI offered, so AI rolls.
+            if(this.isPvP) {
+                ui.setPhase('ROLL'); // Enable roll for current player
+            } else {
+                // PvE: AI turn continues
+                if (this.turn === P2) setTimeout(() => this.rollDice(), 1000);
+            }
         } else {
-            this.finishGame(true);
+            this.finishGame(true); // Drop -> Current turn player wins
         }
     }
 
@@ -883,13 +902,20 @@ const renderer = {
 };
 
 renderer.canvas.addEventListener('click', e => {
-    if(game.turn !== P1) return;
+    // FIX: Allow both players in PvP
+    if (!game.isPvP && game.turn !== P1) return;
+    
     const rect = renderer.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const w = renderer.w;
     
-    if(x > w/2 - 30 && x < w/2 + 30) { if(game.bar[P1]>0) handleClick('BAR'); return; }
+    // Check Bar
+    if(x > w/2 - 30 && x < w/2 + 30) { 
+        if(game.bar[game.turn]>0) handleClick('BAR'); 
+        return; 
+    }
+    // Check Off
     if(x > w-40) { handleClick('OFF'); return; }
 
     const bw = w * 0.08, tw = (w - bw) / 12;
@@ -905,6 +931,7 @@ renderer.canvas.addEventListener('click', e => {
 });
 
 function handleClick(idx) {
+    // If selecting valid destination
     if (game.selectedPoint !== -1) {
         let valid = game.getPossibleMoves(game.selectedPoint);
         let match = valid.find(m => m.dest === idx);
@@ -914,10 +941,16 @@ function handleClick(idx) {
         }
     }
     
-    if (idx === 'BAR' && game.bar[P1] > 0) game.selectedPoint = 'BAR';
-    else if (idx !== 'OFF' && game.board[idx].length > 0 && game.board[idx][0] === P1) game.selectedPoint = idx;
-    else game.selectedPoint = -1;
+    // Selecting Source Piece
+    if (idx === 'BAR' && game.bar[game.turn] > 0) {
+        game.selectedPoint = 'BAR';
+    } else if (idx !== 'OFF' && game.board[idx].length > 0 && game.board[idx][0] === game.turn) {
+        game.selectedPoint = idx;
+    } else {
+        game.selectedPoint = -1;
+    }
     
+    // Update Valid Moves Highlights
     if (game.selectedPoint !== -1) {
         game.validDestinations = game.getPossibleMoves(game.selectedPoint).map(m => m.dest);
     } else {
@@ -935,8 +968,8 @@ const ui = {
         ui.show('modal-'+id);
     },
     showWinModal: (winner, txt) => {
-        document.getElementById('win-title').innerText = (winner===P1?"🏆 승리!":"💀 패배...");
-        document.getElementById('win-title').style.color = (winner===P1?"#FF6F00":"#555");
+        document.getElementById('win-title').innerText = (winner===P1?"🐰 P1 승리!":"🐻 P2 승리!");
+        document.getElementById('win-title').style.color = (winner===P1?"#F5F5F5":"#3E2723");
         document.getElementById('win-desc').innerText = txt;
         ui.show('modal-win');
     },
@@ -944,7 +977,10 @@ const ui = {
         document.getElementById('score-p1').innerText = game.matchScore[P1];
         document.getElementById('score-p2').innerText = game.matchScore[P2];
         document.getElementById('cube-val').innerText = game.cube;
-        document.getElementById('cube-owner').innerText = game.cubeOwner===0?"중앙":(game.cubeOwner===P1?"나":"상대");
+        let ownerText = "중앙";
+        if(game.cubeOwner === P1) ownerText = "🐰 P1";
+        if(game.cubeOwner === P2) ownerText = "🐻 P2";
+        document.getElementById('cube-owner').innerText = ownerText;
     },
     updateInfo: () => {
         const el1 = document.getElementById('pip-p1');
@@ -953,6 +989,10 @@ const ui = {
         const new2 = game.getPip(P2);
         if (el1.innerText != new1) { el1.innerText = new1; el1.classList.remove('update'); void el1.offsetWidth; el1.classList.add('update'); }
         if (el2.innerText != new2) { el2.innerText = new2; el2.classList.remove('update'); void el2.offsetWidth; el2.classList.add('update'); }
+        
+        // Active Player Highlight
+        document.getElementById('p1-box').classList.toggle('active', game.turn === P1);
+        document.getElementById('p2-box').classList.toggle('active', game.turn === P2);
     },
     updateDice: (d1, d2) => {
         if(d1 !== undefined && d1 !== null) {
@@ -973,12 +1013,32 @@ const ui = {
         ml.classList.toggle('show', game.moves.length > 0);
     },
     updateBoard: () => { renderer.draw(); },
+    
+    // FIX: PvP Phase Logic
     setPhase: (p) => {
-        let myTurn = (game.turn === P1);
-        document.getElementById('btn-roll').disabled = !myTurn || (p!=='ROLL');
-        document.getElementById('btn-double').disabled = !myTurn || game.crawford || (game.cubeOwner === P2); 
-        document.getElementById('btn-undo').disabled = !myTurn;
-        document.getElementById('msg-box').innerText = myTurn ? (p==='ROLL'?"주사위를 굴리세요":"말을 움직이세요") : "상대 턴 진행 중...";
+        // In PvP, it's always 'my turn' whoever is playing.
+        let isMyTurn = game.isPvP || (game.turn === P1);
+        
+        const btnRoll = document.getElementById('btn-roll');
+        const btnDouble = document.getElementById('btn-double');
+        const btnUndo = document.getElementById('btn-undo');
+        const msg = document.getElementById('msg-box');
+
+        btnRoll.disabled = !isMyTurn || (p !== 'ROLL');
+        
+        // Double Check: Can I double?
+        // Rule: Center(0) or Me owns it. Crawford not active.
+        let iCanDouble = (game.cubeOwner === 0) || (game.cubeOwner === game.turn);
+        btnDouble.disabled = !isMyTurn || !iCanDouble || game.crawford || (p !== 'ROLL');
+        
+        btnUndo.disabled = !isMyTurn;
+
+        if (isMyTurn) {
+            let playerIcon = (game.turn === P1) ? "🐰 P1" : "🐻 P2";
+            msg.innerText = (p === 'ROLL') ? `${playerIcon}: 주사위를 굴리세요` : `${playerIcon}: 말을 움직이세요`;
+        } else {
+            msg.innerText = "상대 턴 진행 중...";
+        }
     },
     toggleRollBtn: (en) => document.getElementById('btn-roll').disabled = !en,
     toggleDoubleBtn: (en) => document.getElementById('btn-double').disabled = !en,
