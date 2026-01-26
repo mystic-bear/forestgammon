@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>숲속의 백개먼 (Ver 9.0 - Cube UI Fix)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+
+        :root {
+            --bg-color: #2E7D32;
+            --panel-bg: rgba(0,0,0,0.75);
+            --accent-color: #FFD700;
+            --p1-color: #F5F5F5;
+            --p2-color: #3E2723;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Jua', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: var(--bg-color);
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(5px);
+            z-index: 2000; transition: opacity 0.3s;
+        }
+        .screen.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
+
+        .game-container {
+            display: grid;
+            grid-template-columns: 280px 1fr 280px;
+            width: 98%; height: 95vh; gap: 15px; z-index: 1;
+        }
+
+        .panel {
+            background: var(--panel-bg); border-radius: 20px; padding: 20px;
+            border: 2px solid rgba(255,255,255,0.1);
+            display: flex; flex-direction: column;
+        }
+        .panel-left { justify-content: flex-start; gap: 15px; }
+        .panel-right { justify-content: space-between; }
+
+        .info-header { text-align: center; font-size: 1.5rem; color: var(--accent-color); margin-bottom: 5px; }
+
+        .player-box {
+            background: rgba(255,255,255,0.1); padding: 15px; border-radius: 12px;
+            display: flex; flex-direction: column; gap: 5px;
+            border-left: 5px solid transparent; transition: 0.3s;
+        }
+        .player-box.active { 
+            background: rgba(255,255,255,0.25); border-left-color: #FFD700; transform: scale(1.02); 
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+        }
+        .p-name { font-size: 1.3rem; font-weight: bold; }
+        .p-stat { display: flex; justify-content: space-between; font-size: 1rem; color: #ddd; }
+        .p-score { color: #FFD700; font-weight: bold; font-size: 1.2rem; }
+        .p-pip { color: #aaa; font-weight: normal; font-size: 0.9rem; }
+        .p-log { font-size: 0.8rem; color: #aaa; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display:flex; align-items:center; gap:5px;}
+
+        .board-area {
+            position: relative; background: #5D4037; border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden; border: 8px solid #3E2723;
+        }
+        canvas { border-radius: 5px; max-width: 100%; max-height: 100%; cursor: pointer; }
+
+        .msg-box { 
+            text-align: center; color: white; margin-bottom: 15px; font-size: 1.2rem; height: 2em; 
+            display: flex; align-items: center; justify-content: center; 
+            background: rgba(0,0,0,0.3); border-radius: 10px; 
+        }
+
+        .dice-area {
+            display: flex; flex-direction: column; align-items: center; margin-bottom: 20px;
+        }
+        .dice-box { display: flex; justify-content: center; gap: 15px; height: 60px; }
+        .die { 
+            width: 60px; height: 60px; background: white; color: #333; border-radius: 12px; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 2rem; font-weight: bold; box-shadow: 0 5px 0 #999; border: 1px solid #ccc;
+            transition: 0.2s;
+        }
+        .die.used { opacity: 0.3; transform: scale(0.85); box-shadow: none; filter: grayscale(100%); }
+        .moves-left { 
+            margin-top: 8px; font-size: 0.9rem; color: #FFD700; background: rgba(0,0,0,0.5); 
+            padding: 2px 10px; border-radius: 10px; visibility: hidden;
+        }
+        .moves-left.show { visibility: visible; }
+
+        .btn { 
+            padding: 15px; font-size: 1.1rem; border: none; border-radius: 12px; 
+            cursor: pointer; color: white; font-weight: bold; box-shadow: 0 4px 0 rgba(0,0,0,0.3); 
+            width: 100%; margin-bottom: 10px; transition: transform 0.1s; 
+        }
+        .btn:active { transform: translateY(3px); box-shadow: none; }
+        .btn:disabled { background: #78909C; opacity: 0.5; cursor: not-allowed; }
+        .btn-roll { background: #FF6F00; }
+        .btn-double { background: #5E35B1; }
+        .btn-sub { background: #546E7A; font-size: 1rem; padding: 10px; }
+        .btn-hint { background: #039BE5; }
+
+        /* Menu */
+        .menu-box {
+            background: white; color: #333; padding: 30px; border-radius: 25px;
+            width: 450px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        }
+        .menu-title { color: var(--bg-color); font-size: 2.5rem; margin-bottom: 20px; font-weight: bold; }
+        .menu-label { text-align: left; font-weight: bold; color: #555; margin: 15px 0 5px; }
+        
+        .toggle-group { display: flex; background: #eee; border-radius: 15px; padding: 4px; margin-bottom: 15px; }
+        .toggle-opt { flex: 1; padding: 10px; border-radius: 12px; cursor: pointer; color: #777; transition: 0.2s; font-weight: bold; }
+        .toggle-opt.selected { background: #FF6F00; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+
+        .btn-mode {
+            display: flex; align-items: center; padding: 12px 15px; border-radius: 12px; 
+            border: 2px solid #eee; background: white; cursor: pointer; transition: 0.2s;
+            margin-bottom: 8px; width: 100%; text-align: left;
+        }
+        .btn-mode:hover { border-color: #FF6F00; transform: translateX(5px); }
+        .btn-mode .badge { background: #555; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 10px; min-width: 45px; text-align:center;}
+        .btn-mode.pvp { background: #E3F2FD; border-color: #90CAF9; }
+
+        .toast {
+            position: fixed; top: 15%; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.95); color: #FFD700; padding: 15px 25px;
+            border-radius: 30px; font-size: 1.1rem; pointer-events: none;
+            opacity: 0; transition: opacity 0.3s; z-index: 3000; border: 2px solid white; 
+            white-space: pre-line; text-align: center; line-height: 1.5;
+        }
+        .toast.show { opacity: 1; transform: translate(-50%, -10px); }
+
+        .modal-box { background: white; color: #333; padding: 30px; border-radius: 20px; text-align: center; width: 380px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        
+        #confetti-canvas { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 1500; }
+
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" class="screen">
+        <div class="menu-box">
+            <div class="menu-title">🎲 숲속의 백개먼</div>
+            
+            <div class="menu-label">🏆 목표 점수</div>
+            <div class="toggle-group">
+                <div class="toggle-opt" onclick="menu.selectScore(3, this)">3점</div>
+                <div class="toggle-opt selected" onclick="menu.selectScore(5, this)">5점</div>
+                <div class="toggle-opt" onclick="menu.selectScore(7, this)">7점</div>
+            </div>
+
+            <div class="menu-label">🎮 대전 모드</div>
+            <button class="btn-mode pvp" onclick="game.startPvP()">
+                <span style="font-size:1.5rem; margin-right:10px;">👥</span>
+                <div>
+                    <div style="font-weight:bold; font-size:1.1rem; color:#1565C0;">2인 대전 (PvP)</div>
+                    <div style="font-size:0.8rem; color:#555;">친구와 함께 플레이</div>
+                </div>
+            </button>
+
+            <div style="height:1px; background:#ddd; margin:15px 0;"></div>
+            <div style="font-size:0.9rem; color:#888; margin-bottom:5px; text-align:left;">혼자 하기 (vs AI)</div>
+
+            <button class="btn-mode" onclick="game.startPvE(1)">
+                <span class="badge" style="background:#FF9800">Lv.1</span> 🐿️ 길치 다람쥐 <span style="margin-left:auto; font-size:0.8rem; color:#999;">초보</span>
+            </button>
+            <button class="btn-mode" onclick="game.startPvE(2)">
+                <span class="badge" style="background:#795548">Lv.2</span> 🦝 심술 너구리 <span style="margin-left:auto; font-size:0.8rem; color:#999;">공격형</span>
+            </button>
+            <button class="btn-mode" onclick="game.startPvE(3)">
+                <span class="badge" style="background:#E65100">Lv.3</span> 🦊 얌체 여우 <span style="margin-left:auto; font-size:0.8rem; color:#999;">방어형</span>
+            </button>
+            <button class="btn-mode" onclick="game.startPvE(4)">
+                <span class="badge" style="background:#455A64">Lv.4</span> 🦉 똑똑 부엉이 <span style="margin-left:auto; font-size:0.8rem; color:#999;">숙련자</span>
+            </button>
+            <button class="btn-mode" onclick="game.startPvE(5)">
+                <span class="badge" style="background:#2E7D32">Lv.5</span> 🌳 숲의 주인 <span style="margin-left:auto; font-size:0.8rem; color:#999;">초고수</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen hidden" style="background:none; pointer-events:auto;">
+        <div class="game-container">
+            <div class="panel panel-left">
+                <div class="info-header">SCORE BOARD</div>
+                
+                <div id="p1-box" class="player-box">
+                    <div class="p-name">🐰 P1 (나)</div>
+                    <div class="p-stat">
+                        <span class="p-score" id="score-p1">0</span>
+                        <span class="p-pip">PIP: <span id="pip-p1">167</span></span>
+                    </div>
+                    <div class="p-log" id="log-p1">기록 없음</div>
+                </div>
+
+                <div id="p2-box" class="player-box">
+                    <div class="p-name" id="p2-name">🐻 P2</div>
+                    <div class="p-stat">
+                        <span class="p-score" id="score-p2">0</span>
+                        <span class="p-pip">PIP: <span id="pip-p2">167</span></span>
+                    </div>
+                    <div class="p-log" id="log-p2">기록 없음</div>
+                </div>
+
+                <div style="margin-top:auto; text-align:center;">
+                    <div style="font-size:0.8rem; color:#aaa;">DOUBLING CUBE</div>
+                    <div style="font-size:2.5rem; font-weight:bold; color:#FFD700;" id="cube-val">1</div>
+                    <div style="font-size:0.9rem; color:#ccc;" id="cube-owner">중앙</div>
+                </div>
+            </div>
+
+            <div class="board-area" id="board-container">
+                <canvas id="board"></canvas>
+            </div>
+
+            <div class="panel panel-right">
+                <div>
+                    <div class="msg-box" id="msg-box">준비 완료</div>
+                    <div class="dice-area">
+                        <div class="dice-box">
+                            <div class="die" id="die1">?</div>
+                            <div class="die" id="die2">?</div>
+                        </div>
+                        <div id="moves-left" class="moves-left">남은 이동: 0회</div>
+                    </div>
+                    
+                    <button id="btn-roll" class="btn btn-roll" onclick="game.rollDice()">🎲 주사위 굴리기</button>
+                    <button id="btn-double" class="btn btn-double" onclick="game.humanOfferDouble()">💎 2배 (Double)</button>
+                </div>
+                
+                <div>
+                    <div style="display:flex; gap:10px;">
+                        <button id="btn-undo" class="btn btn-sub" onclick="game.undo()">↩️ 무르기</button>
+                        <button id="btn-hint" class="btn btn-hint" onclick="game.getHint()">💡 힌트</button>
+                    </div>
+                    <button class="btn btn-sub" style="margin-top:10px;" onclick="game.toMenu()">🏠 메뉴로</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-double" class="screen hidden">
+        <div class="modal-box">
+            <h2 style="color:#5E35B1; margin-bottom:15px;">💎 더블 제안!</h2>
+            <p id="double-msg" style="color:#555; margin-bottom:20px; font-size:1.1rem;">판돈을 2배로 올리시겠습니까?</p>
+            <div style="display:flex; gap:10px;">
+                <button class="btn" style="background:#4CAF50;" onclick="game.resolveDouble(true)">수락 (Take)</button>
+                <button class="btn" style="background:#F44336;" onclick="game.resolveDouble(false)">포기 (Drop)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-win" class="screen hidden">
+        <div class="modal-box">
+            <h1 id="win-title" style="font-size:3rem; margin-bottom:10px; color:#FF6F00;">승리!</h1>
+            <p id="win-desc" style="color:#666; margin-bottom:20px;">...</p>
+            <button class="btn btn-roll" onclick="game.nextRound()">다음 라운드</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">메시지</div>
+    <canvas id="confetti-canvas"></canvas>
+
+<script>
+/**
+ * Forest Backgammon - Ver 9.0
+ * Fixes: Cube UI update on new round, Hint text restored
+ */
+
+const P1 = 1; // White (Rabbit)
+const P2 = 2; // Black (Bear)
+const OFF = 26; 
+
+const menu = {
+    targetScore: 5,
+    selectScore: (s, el) => {
+        menu.targetScore = s;
+        document.querySelectorAll('.toggle-opt').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+    }
+};
+
+const AI_DATA = {
+    1: { name: "길치 다람쥐", icon: "🐿️" },
+    2: { name: "심술 너구리", icon: "🦝" },
+    3: { name: "얌체 여우", icon: "🦊" },
+    4: { name: "똑똑 부엉이", icon: "🦉" },
+    5: { name: "숲의 주인", icon: "🌳" }
+};
+
+class Backgammon {
+    constructor() {
+        this.board = [];
+        this.bar = { [P1]: 0, [P2]: 0 };
+        this.off = { [P1]: 0, [P2]: 0 };
+        this.matchScore = { [P1]: 0, [P2]: 0 };
+        this.cube = 1; this.cubeOwner = 0;
+        this.turn = P1;
+        this.dice = [];
+        this.moves = []; 
+        this.history = [];
+        this.isPvP = false;
+        this.aiLevel = 0;
+        
+        this.selectedPoint = -1;
+        this.validDestinations = [];
+        this.hintMove = null;
+    }
+
+    startPvP() {
+        this.isPvP = true;
+        this.p2Name = "🐻 P2 (친구)";
+        this.startMatch();
+    }
+
+    startPvE(level) {
+        this.isPvP = false;
+        this.aiLevel = level;
+        let info = AI_DATA[level];
+        this.p2Name = `${info.icon} ${info.name}`;
+        this.startMatch();
+    }
+
+    startMatch() {
+        ui.hide('start-screen');
+        ui.show('game-screen');
+        setTimeout(() => renderer.resize(), 100);
+
+        this.matchScore = { [P1]: 0, [P2]: 0 };
+        document.getElementById('p2-name').innerText = this.p2Name;
+        this.initRound();
+        ui.updateScore();
+    }
+
+    initRound() {
+        this.board = Array(25).fill(null).map(() => []);
+        this.bar = { [P1]: 0, [P2]: 0 };
+        this.off = { [P1]: 0, [P2]: 0 };
+        this.history = [];
+        
+        // Reset Cube
+        this.cube = 1; 
+        this.cubeOwner = 0;
+
+        this.add(P1, 1, 2); this.add(P1, 12, 5); this.add(P1, 17, 3); this.add(P1, 19, 5);
+        this.add(P2, 24, 2); this.add(P2, 13, 5); this.add(P2, 8, 3); this.add(P2, 6, 5);
+
+        this.turn = P1;
+        this.dice = [];
+        this.moves = [];
+        
+        ui.updateBoard();
+        ui.updateInfo();
+        ui.updateScore(); // Fix: Update Cube UI on new round
+        ui.setPhase('ROLL');
+        ui.updateDice('?', '?');
+    }
+
+    add(p, i, c) { for(let k=0; k<c; k++) this.board[i].push(p); }
+
+    rollDice() {
+        ui.playSound('dice');
+        const d1 = Math.floor(Math.random() * 6) + 1;
+        const d2 = Math.floor(Math.random() * 6) + 1;
+        this.dice = [d1, d2];
+        this.moves = (d1===d2) ? [d1, d1, d1, d1] : [d1, d2];
+        
+        this.saveState();
+        this.hintMove = null;
+
+        ui.updateDice(d1, d2); 
+        ui.setPhase('MOVE');
+
+        if (!this.hasValidMoves()) {
+            ui.setMsg("이동 불가! 턴 넘어감");
+            setTimeout(() => this.endTurn(), 2000);
+        } else {
+            if (!this.isPvP && this.turn === P2) {
+                setTimeout(() => ai.play(), 1000);
+            }
+        }
+    }
+
+    getPossibleMoves(from) {
+        let res = [];
+        let isBar = (from === 'BAR');
+        
+        if (isBar) {
+            if (this.bar[this.turn] === 0) return [];
+        } else {
+            if (this.bar[this.turn] > 0) return []; 
+            if (this.board[from].length === 0 || this.board[from][0] !== this.turn) return [];
+        }
+
+        let uniqueDice = [...new Set(this.moves)];
+        uniqueDice.forEach(die => {
+            let start = isBar ? (this.turn===P1 ? 0 : 25) : from; 
+            let dir = (this.turn===P1) ? 1 : -1;
+            let dest = start + (die * dir);
+
+            let canOff = this.canBearOff(this.turn);
+            if (this.turn===P1 && dest >= 25) {
+                if(canOff && (dest===25 || this.noPieceBefore(P1, from))) res.push({dest: 'OFF', die});
+            } else if (this.turn===P2 && dest <= 0) {
+                if(canOff && (dest===0 || this.noPieceAfter(P2, from))) res.push({dest: 'OFF', die});
+            }
+            else if (dest >= 1 && dest <= 24) {
+                let stack = this.board[dest];
+                if(stack.length <= 1 || stack[0] === this.turn) res.push({dest, die});
+            }
+        });
+        return res;
+    }
+
+    hasValidMoves() {
+        if (this.bar[this.turn] > 0) return this.getPossibleMoves('BAR').length > 0;
+        for (let i=1; i<=24; i++) if (this.board[i].length>0 && this.board[i][0]===this.turn) if (this.getPossibleMoves(i).length > 0) return true;
+        return false;
+    }
+
+    canBearOff(p) {
+        if (this.bar[p] > 0) return false;
+        let s = (p===P1) ? 1 : 7; let e = (p===P1) ? 18 : 24;
+        for(let i=s; i<=e; i++) if(this.board[i].length>0 && this.board[i][0]===p) return false;
+        return true;
+    }
+    noPieceBefore(p, f) { for(let i=19; i<f; i++) if(this.board[i].length>0 && this.board[i][0]===p) return false; return true; }
+    noPieceAfter(p, f) { for(let i=f+1; i<=6; i++) if(this.board[i].length>0 && this.board[i][0]===p) return false; return true; }
+
+    executeMove(from, to, die) {
+        let txt = (from==='BAR') ? `Bar → ${to}` : (to==='OFF') ? `${from} → 탈출` : `${from} → ${to}`;
+        let icon = (this.turn===P1)?"🐰":"🐻";
+        ui.log(this.turn, `${icon} ${txt}`);
+
+        let idx = this.moves.indexOf(die);
+        if(idx > -1) this.moves.splice(idx, 1);
+        else { this.moves.sort((a,b)=>b-a); this.moves.shift(); }
+
+        if (from==='BAR') this.bar[this.turn]--; else this.board[from].pop();
+        
+        if (to==='OFF') {
+            this.off[this.turn]++;
+            ui.playSound('score');
+        } else {
+            let s = this.board[to];
+            if(s.length===1 && s[0]!==this.turn) {
+                this.bar[s.pop()]++;
+                ui.toast("상대 말을 잡았습니다! 💥");
+            }
+            s.push(this.turn);
+            ui.playSound('move');
+        }
+
+        this.selectedPoint = -1;
+        this.validDestinations = [];
+        this.hintMove = null;
+        
+        ui.updateBoard();
+        ui.updateInfo(); 
+        ui.updateDice(); 
+
+        if (this.off[this.turn] === 15) {
+            this.finishGame(false); 
+            return;
+        }
+
+        if (this.moves.length === 0 || !this.hasValidMoves()) {
+            setTimeout(() => this.endTurn(), 500);
+        } else {
+            if(!this.isPvP && this.turn===P2) setTimeout(()=>ai.play(), 800);
+        }
+    }
+
+    endTurn() {
+        this.turn = (this.turn===P1) ? P2 : P1;
+        this.dice = [];
+        this.hintMove = null;
+        ui.updateBoard();
+        ui.setPhase('ROLL');
+        if (!this.isPvP && this.turn === P2) {
+            setTimeout(() => {
+                if(ai.shouldDouble()) game.aiOfferDouble();
+                else this.rollDice();
+            }, 1000);
+        }
+    }
+
+    saveState() {
+        this.history.push({
+            board: JSON.parse(JSON.stringify(this.board)),
+            bar: {...this.bar}, off: {...this.off},
+            turn: this.turn, dice: [...this.dice], moves: [...this.moves]
+        });
+    }
+
+    undo() {
+        if (this.history.length === 0) return;
+        let state = this.history.pop();
+        if (!this.isPvP) {
+            while(state && state.turn === P2) {
+                if(this.history.length===0) break;
+                state = this.history.pop();
+            }
+        }
+        if(state) {
+            this.board = state.board; this.bar = state.bar; this.off = state.off;
+            this.turn = state.turn; this.dice = state.dice; this.moves = state.moves;
+            this.selectedPoint = -1; this.hintMove = null;
+            ui.updateDice(this.dice[0], this.dice[1]);
+            ui.updateBoard();
+            ui.updateInfo();
+            ui.setPhase(this.moves.length > 0 ? 'MOVE' : 'ROLL');
+            ui.toast("무르기 완료");
+        }
+    }
+
+    getHint() {
+        if(this.turn !== P1 || this.moves.length === 0) return;
+        let best = ai.findBestMove(P1, true);
+        if(best) {
+            this.hintMove = best;
+            
+            // Risk Calc
+            let tempBoard = JSON.parse(JSON.stringify(this.board));
+            let s = (best.from==='BAR')?0:best.from, d=(best.to==='OFF')?25:best.to;
+            if(s===0) {} else tempBoard[s].pop();
+            if(d!==25) { if(tempBoard[d].length===1 && tempBoard[d][0]!==P1) tempBoard[d]=[]; tempBoard[d].push(P1); }
+            
+            let risk = ai.calculateRiskProbability(tempBoard, P1);
+            let reason = best.reason || "전략적으로 유리한 위치입니다.";
+            
+            ui.updateBoard();
+            ui.toast(`💡 추천: ${best.from} → ${best.to}\n(위험도: ${risk}%) ${reason}`);
+        } else {
+            ui.toast("가능한 수가 없습니다.");
+        }
+    }
+
+    humanOfferDouble() {
+        if(this.turn !== P1) return;
+        let take = ai.decideTake(this.cube * 2);
+        if (take) {
+            this.cube *= 2;
+            this.cubeOwner = P2; 
+            ui.updateScore();
+            ui.toast("AI가 더블을 수락했습니다!");
+            ui.toggleRollBtn(true);
+            ui.toggleDoubleBtn(false);
+        } else {
+            ui.toast("AI가 포기했습니다. 당신의 승리!");
+            this.finishGame(true);
+        }
+    }
+
+    aiOfferDouble() {
+        ui.showModal('double', `AI가 판돈을 ${this.cube * 2}배로 올리자고 합니다.`);
+    }
+
+    resolveDouble(isTake) {
+        ui.hide('modal-double');
+        if (isTake) {
+            this.cube *= 2;
+            this.cubeOwner = P1;
+            ui.updateScore();
+            ui.toast("더블 수락! 주사위를 굴리세요.");
+            if(this.turn === P1) ui.setPhase('ROLL');
+            else setTimeout(() => this.rollDice(), 1000); 
+        } else {
+            this.finishGame(true);
+        }
+    }
+
+    finishGame(isDrop) {
+        let winner = this.turn;
+        let points = this.cube;
+        
+        if (!isDrop) {
+            let loser = (winner === P1) ? P2 : P1;
+            if (this.off[loser] === 0) {
+                if (this.bar[loser] > 0 || this.hasCheckerInHome(loser, winner)) {
+                    points *= 3; 
+                    ui.showWinModal(winner, "백개먼 승리! (3배)");
+                } else {
+                    points *= 2; 
+                    ui.showWinModal(winner, "개먼 승리! (2배)");
+                }
+            } else {
+                ui.showWinModal(winner, "승리!");
+            }
+        } else {
+            ui.showWinModal(winner, "기권 승!");
+        }
+        
+        this.matchScore[winner] += points;
+        ui.updateScore();
+        if(winner === P1) startConfetti();
+    }
+
+    hasCheckerInHome(loser, winner) {
+        let start = (winner === P1) ? 19 : 1;
+        let end = (winner === P1) ? 24 : 6;
+        for(let i=start; i<=end; i++) if(this.board[i].includes(loser)) return true;
+        return false;
+    }
+
+    nextRound() {
+        ui.hide('modal-win'); stopConfetti();
+        if(this.matchScore[P1] >= menu.targetScore || this.matchScore[P2] >= menu.targetScore) this.toMenu();
+        else this.initRound();
+    }
+    toMenu() { ui.show('start-screen'); }
+    
+    getPip(player) {
+        let pip = 0;
+        for(let i=1; i<=24; i++) {
+            if(this.board[i].length > 0 && this.board[i][0] === player) {
+                let dist = (player === P1) ? (25 - i) : i;
+                pip += (this.board[i].length * dist);
+            }
+        }
+        pip += this.bar[player] * 25;
+        return pip;
+    }
+}
+
+class AI {
+    play() {
+        try {
+            let best = this.findBestMove(P2, false);
+            if(best) game.executeMove(best.from, best.to, best.die);
+            else setTimeout(()=>game.endTurn(), 500);
+        } catch (e) {
+            console.error(e);
+            game.endTurn();
+        }
+    }
+
+    findBestMove(player, forceMax) {
+        let sources = [];
+        if(game.bar[player]>0) sources.push('BAR');
+        else for(let i=1; i<=24; i++) if(game.board[i].includes(player)) sources.push(i);
+
+        if(sources.length===0) return null;
+
+        let best = null; let maxScore = -99999;
+        let lvl = forceMax ? 5 : game.aiLevel;
+
+        sources.forEach(src => {
+            let originalTurn = game.turn;
+            game.turn = player;
+            let moves = game.getPossibleMoves(src);
+            game.turn = originalTurn;
+
+            moves.forEach(m => {
+                let res = this.evalMove(src, m.dest, m.die, player, lvl);
+                if(res.score > maxScore) { maxScore = res.score; best = {from: src, to: m.dest, die: m.die, reason: res.reason}; }
+            });
+        });
+        return best;
+    }
+
+    evalMove(from, to, die, player, level) {
+        let score = 0; let reason = "";
+        let isP1 = (player === P1);
+        
+        if (to === 'OFF') return {score: 10000, reason: "승리를 위해 탈출합니다!"};
+
+        let destStack = game.board[to];
+        let opponent = isP1 ? P2 : P1;
+        let isHit = (destStack.length === 1 && destStack[0] === opponent);
+        let isBuild = (destStack.length === 1 && destStack[0] === player);
+        let progress = isP1 ? to : (25 - to); 
+
+        switch (level) {
+            case 1: score = Math.random() * 1000; break;
+            case 2: if (isHit) score += 5000; score += progress; break;
+            case 3: if (isBuild) score += 2000; score += progress; break;
+            case 4: 
+            case 5:
+                if (isHit) { score += 1000; reason = "상대방의 빈틈(Blot)을 공격하세요!"; }
+                else if (isBuild) { score += 600; reason = "안전지대를 만들어 수비를 강화합니다."; }
+                else { score += progress * 2; reason = "잡히지 않게 안전한 곳으로 전진합니다."; }
+                
+                if (level === 5 && !isBuild && !isHit && this.isRisky(to, player)) { 
+                    score -= 800; 
+                    reason = "위험이 있지만 어쩔 수 없는 수입니다."; 
+                }
+                break;
+        }
+        return {score, reason};
+    }
+
+    isRisky(targetIdx, player) {
+        let start = targetIdx + 1;
+        let end = Math.min(24, targetIdx + 6);
+        let opponent = (player === P1) ? P2 : P1;
+        if (player === P2) { start = Math.max(1, targetIdx - 6); end = targetIdx - 1; }
+        for (let i = start; i <= end; i++) {
+            if (game.board[i].length > 0 && game.board[i][0] === opponent) return true;
+        }
+        return false;
+    }
+
+    calculateRiskProbability(tempBoard, player) {
+        let opponent = (player === P1) ? P2 : P1;
+        let hitCount = 0;
+        let blots = [];
+        for(let i=1; i<=24; i++) if(tempBoard[i].length === 1 && tempBoard[i][0] === player) blots.push(i);
+        if(blots.length === 0) return 0;
+
+        for (let d1 = 1; d1 <= 6; d1++) {
+            for (let d2 = 1; d2 <= 6; d2++) {
+                if (this.canOpponentHit(tempBoard, opponent, blots, d1, d2)) hitCount++;
+            }
+        }
+        return ((hitCount / 36) * 100).toFixed(1);
+    }
+
+    canOpponentHit(board, opponent, blots, d1, d2) {
+        let sources = [];
+        if(game.bar[opponent]>0) sources.push('BAR');
+        else for(let i=1; i<=24; i++) if(board[i].includes(opponent)) sources.push(i);
+
+        let moves = [d1, d2, d1+d2];
+        for(let src of sources) {
+            let start = (src==='BAR') ? (opponent===P1?0:25) : src;
+            let dir = (opponent===P1) ? 1 : -1;
+            for(let m of moves) {
+                let dest = start + (m * dir);
+                if(blots.includes(dest)) return true;
+            }
+        }
+        return false;
+    }
+
+    shouldDouble() {
+        if (game.aiLevel === 1) return false;
+        let p1Pip = game.getPip(P1);
+        let p2Pip = game.getPip(P2);
+        return (p2Pip < p1Pip - 15) && (Math.random() > 0.7);
+    }
+
+    decideTake(val) {
+        if (game.aiLevel === 1) return true;
+        let p1Pip = game.getPip(P1);
+        let p2Pip = game.getPip(P2);
+        if (p2Pip > p1Pip + 40) return false;
+        return true;
+    }
+}
+
+const renderer = {
+    canvas: document.getElementById('board'),
+    ctx: document.getElementById('board').getContext('2d'),
+    
+    resize: () => {
+        let p = document.getElementById('board-container');
+        renderer.canvas.width = p.clientWidth;
+        renderer.canvas.height = p.clientHeight;
+        renderer.w = p.clientWidth;
+        renderer.h = p.clientHeight;
+        renderer.draw();
+    },
+
+    draw: () => {
+        const ctx = renderer.ctx;
+        const w = renderer.w, h = renderer.h;
+        if(!w) return;
+
+        ctx.clearRect(0,0,w,h);
+        
+        ctx.fillStyle = '#D7CCC8';
+        ctx.fillRect(0,0,w,h);
+        
+        const barW = w * 0.08;
+        const triW = (w - barW) / 12;
+        const triH = h * 0.4;
+
+        for(let i=1; i<=24; i++) {
+            let pos = renderer.getPos(i, w, h, triW, barW);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.baseY);
+            ctx.lineTo(pos.x + triW, pos.baseY);
+            ctx.lineTo(pos.x + triW/2, pos.tipY);
+            ctx.fillStyle = (i%2===0) ? '#5D4037' : '#FFCC80';
+            if(i>=13) ctx.fillStyle = (i%2!==0) ? '#5D4037' : '#FFCC80';
+            ctx.fill();
+            
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.textAlign = 'center';
+            let numY = pos.isTop ? 20 : h - 10;
+            ctx.fillText(i, pos.x + triW/2, numY);
+
+            if (game.validDestinations.includes(i)) {
+                ctx.beginPath();
+                ctx.arc(pos.x + triW/2, (pos.baseY + pos.tipY)/2, triW/4, 0, Math.PI*2);
+                ctx.fillStyle = '#00E676';
+                ctx.fill();
+                ctx.lineWidth = 3; ctx.strokeStyle = 'white'; ctx.stroke();
+            }
+
+            let stack = game.board[i];
+            let r = Math.min(triW/2 - 2, 22);
+            stack.forEach((p, idx) => {
+                let cy = pos.isTop ? pos.baseY + r + 5 + (idx*r*2) : pos.baseY - r - 5 - (idx*r*2);
+                if(stack.length > 5) cy = pos.isTop ? pos.baseY + r + (idx*((triH-r)/stack.length)) : pos.baseY - r - (idx*((triH-r)/stack.length));
+                renderer.drawPiece(pos.x + triW/2, cy, r, p, (game.selectedPoint === i && idx === stack.length-1));
+            });
+        }
+
+        ctx.fillStyle = '#4E342E';
+        ctx.fillRect((w-barW)/2, 0, barW, h);
+        let p1b = game.bar[P1], p2b = game.bar[P2];
+        for(let i=0; i<p1b; i++) renderer.drawPiece(w/2, h*0.75 + (i*15), 20, P1, (game.selectedPoint==='BAR' && i===p1b-1));
+        for(let i=0; i<p2b; i++) renderer.drawPiece(w/2, h*0.25 - (i*15), 20, P2, false);
+
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.fillRect(w-40, 0, 40, h);
+        if (game.validDestinations.includes('OFF')) {
+            ctx.fillStyle = 'rgba(0,255,0,0.4)';
+            ctx.fillRect(w-40, (game.turn===P1?0:h/2), 40, h/2);
+        }
+
+        if (game.hintMove) {
+            let from = game.hintMove.from;
+            let to = game.hintMove.to;
+            let start = renderer.getCenter(from, w, h, triW, barW);
+            let end = renderer.getCenter(to, w, h, triW, barW);
+            
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = '#00BCD4';
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            
+            ctx.beginPath(); ctx.arc(start.x, start.y, 8, 0, Math.PI*2);
+            ctx.fillStyle = '#00BCD4'; ctx.fill();
+            ctx.beginPath(); ctx.arc(end.x, end.y, 8, 0, Math.PI*2);
+            ctx.fill();
+        }
+    },
+
+    getPos: (i, w, h, tw, bw) => {
+        let x, baseY, tipY, isTop;
+        if (i<=6) { x = w - (i*tw); baseY = h; tipY = h - (h*0.4); isTop=false; }
+        else if (i<=12) { x = w - bw - (i*tw); baseY = h; tipY = h - (h*0.4); isTop=false; }
+        else if (i<=18) { x = w - bw - ((25-i)*tw); baseY = 0; tipY = h*0.4; isTop=true; }
+        else { x = w - ((25-i)*tw); baseY = 0; tipY = h*0.4; isTop=true; }
+        return {x, baseY, tipY, isTop};
+    },
+
+    getCenter: (i, w, h, tw, bw) => {
+        if(i==='BAR') return {x: w/2, y: (game.turn===P1 ? h*0.75 : h*0.25)};
+        if(i==='OFF') return {x: w-20, y: (game.turn===P1 ? h*0.25 : h*0.75)};
+        let p = renderer.getPos(i, w, h, tw, bw);
+        return {x: p.x + tw/2, y: (p.baseY + p.tipY)/2};
+    },
+
+    drawPiece: (x, y, r, p, selected) => {
+        const ctx = renderer.ctx;
+        if (selected) {
+            ctx.beginPath(); ctx.arc(x, y, r+6, 0, Math.PI*2);
+            ctx.fillStyle = '#FFD700'; ctx.fill(); 
+        }
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+        ctx.fillStyle = (p===P1) ? '#F5F5F5' : '#3E2723';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#333';
+        ctx.stroke();
+    }
+};
+
+renderer.canvas.addEventListener('click', e => {
+    if(game.turn !== P1) return;
+    const rect = renderer.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const w = renderer.w;
+    
+    if(x > w/2 - 30 && x < w/2 + 30) { if(game.bar[P1]>0) handleClick('BAR'); return; }
+    if(x > w-40) { handleClick('OFF'); return; }
+
+    const bw = w * 0.08, tw = (w - bw) / 12;
+    let idx = -1;
+    
+    for(let i=1; i<=24; i++) {
+        let p = renderer.getPos(i, w, renderer.h, tw, bw);
+        if (x >= p.x && x <= p.x+tw) {
+            if ((!p.isTop && y > renderer.h/2) || (p.isTop && y < renderer.h/2)) idx = i;
+        }
+    }
+    if (idx !== -1) handleClick(idx);
+});
+
+function handleClick(idx) {
+    if (game.selectedPoint !== -1) {
+        let valid = game.getPossibleMoves(game.selectedPoint);
+        let match = valid.find(m => m.dest === idx);
+        if (match) {
+            game.executeMove(game.selectedPoint, idx, match.die);
+            return;
+        }
+    }
+    
+    if (idx === 'BAR' && game.bar[P1] > 0) game.selectedPoint = 'BAR';
+    else if (idx !== 'OFF' && game.board[idx].length > 0 && game.board[idx][0] === P1) game.selectedPoint = idx;
+    else game.selectedPoint = -1;
+    
+    if (game.selectedPoint !== -1) {
+        game.validDestinations = game.getPossibleMoves(game.selectedPoint).map(m => m.dest);
+    } else {
+        game.validDestinations = [];
+    }
+    renderer.draw();
+}
+
+const ui = {
+    show: (id) => document.getElementById(id).classList.remove('hidden'),
+    hide: (id) => document.getElementById(id).classList.add('hidden'),
+    showModal: (id, txt) => {
+        if(id==='double') document.getElementById('double-msg').innerText = txt;
+        else document.getElementById('win-desc').innerText = txt;
+        ui.show('modal-'+id);
+    },
+    showWinModal: (winner, txt) => {
+        document.getElementById('win-title').innerText = (winner===P1?"🏆 승리!":"💀 패배...");
+        document.getElementById('win-title').style.color = (winner===P1?"#FF6F00":"#555");
+        document.getElementById('win-desc').innerText = txt;
+        ui.show('modal-win');
+    },
+    updateScore: () => {
+        document.getElementById('score-p1').innerText = game.matchScore[P1];
+        document.getElementById('score-p2').innerText = game.matchScore[P2];
+        document.getElementById('cube-val').innerText = game.cube;
+        document.getElementById('cube-owner').innerText = game.cubeOwner===0?"중앙":(game.cubeOwner===P1?"나":"상대");
+    },
+    updateInfo: () => {
+        const el1 = document.getElementById('pip-p1');
+        const el2 = document.getElementById('pip-p2');
+        const new1 = game.getPip(P1);
+        const new2 = game.getPip(P2);
+        if (el1.innerText != new1) { el1.innerText = new1; el1.classList.remove('update'); void el1.offsetWidth; el1.classList.add('update'); }
+        if (el2.innerText != new2) { el2.innerText = new2; el2.classList.remove('update'); void el2.offsetWidth; el2.classList.add('update'); }
+    },
+    updateDice: (d1, d2) => {
+        if(d1 !== undefined && d1 !== null) {
+            document.getElementById('die1').innerText = d1;
+            document.getElementById('die2').innerText = d2;
+            document.querySelectorAll('.die').forEach(e => e.classList.remove('used'));
+        } else {
+            let els = document.querySelectorAll('.die');
+            if (game.moves.length === 0) els.forEach(e => e.classList.add('used'));
+            else if (game.dice[0] !== game.dice[1] && game.moves.length === 1) {
+                let usedDie = (game.moves[0] === game.dice[0]) ? game.dice[1] : game.dice[0];
+                if (usedDie === parseInt(els[0].innerText)) els[0].classList.add('used');
+                else els[1].classList.add('used');
+            }
+        }
+        const ml = document.getElementById('moves-left');
+        ml.innerText = `남은 이동: ${game.moves.length}회`;
+        ml.classList.toggle('show', game.moves.length > 0);
+    },
+    updateBoard: () => { renderer.draw(); },
+    setPhase: (p) => {
+        let myTurn = (game.turn === P1);
+        document.getElementById('btn-roll').disabled = !myTurn || (p!=='ROLL');
+        document.getElementById('btn-double').disabled = !myTurn || game.crawford || (game.cubeOwner === P2); 
+        document.getElementById('btn-undo').disabled = !myTurn;
+        document.getElementById('msg-box').innerText = myTurn ? (p==='ROLL'?"주사위를 굴리세요":"말을 움직이세요") : "상대 턴 진행 중...";
+    },
+    toggleRollBtn: (en) => document.getElementById('btn-roll').disabled = !en,
+    toggleDoubleBtn: (en) => document.getElementById('btn-double').disabled = !en,
+    setMsg: (t) => document.getElementById('msg-box').innerText = t,
+    log: (p, t) => document.getElementById(p===P1?'log-p1':'log-p2').innerText = t,
+    toast: (msg) => {
+        let t = document.getElementById('toast');
+        t.innerText = msg; t.classList.add('show');
+        setTimeout(()=>t.classList.remove('show'), 3000);
+    },
+    playSound: (t) => {}
+};
+
+let game = new Backgammon();
+let ai = new AI();
+window.onload = () => { ui.show('start-screen'); window.addEventListener('resize', renderer.resize); };
+
+// Confetti
+const cvs = document.getElementById('confetti-canvas');
+const c2d = cvs.getContext('2d');
+let particles = [], animId;
+function resizeConfetti() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; }
+window.addEventListener('resize', resizeConfetti); resizeConfetti();
+function createParticle() { return { x: Math.random()*cvs.width, y: Math.random()*cvs.height-cvs.height, size: Math.random()*5+5, speedY: Math.random()*3+2, speedX: Math.random()*2-1, color: `hsl(${Math.random()*360},100%,50%)` }; }
+function startConfetti() { stopConfetti(); particles = Array.from({length:100}, createParticle); animateConfetti(); }
+function stopConfetti() { if(animId) cancelAnimationFrame(animId); particles = []; c2d.clearRect(0,0,cvs.width,cvs.height); }
+function animateConfetti() {
+    c2d.clearRect(0,0,cvs.width,cvs.height);
+    particles.forEach((p, i) => {
+        p.y += p.speedY; p.x += p.speedX; 
+        if(p.y > cvs.height) particles[i] = createParticle();
+        c2d.fillStyle = p.color; c2d.fillRect(p.x, p.y, p.size, p.size);
+    });
+    animId = requestAnimationFrame(animateConfetti);
+}
+</script>
+</body>
+</html>
