@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>숲속의 백개먼 (Menu Fix)</title>
+    <title>숲속의 백개먼 (AI Double Logic Fix)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -271,7 +271,7 @@
 
 <script>
 /**
- * Forest Backgammon - Ver 10.1 (Menu Fix)
+ * Forest Backgammon - Ver 11.0 (AI Double Logic Fixed)
  */
 
 const P1 = 1; // White (Rabbit)
@@ -627,13 +627,11 @@ class Backgammon {
         ui.hide('modal-win'); stopConfetti();
         this.initRound();
     }
-    
-    // FIX: Hide Game Screen on menu click
     toMenu() { 
         ui.hide('modal-win'); 
         ui.hide('modal-double');
-        ui.hide('game-screen'); // Hide Game
-        ui.show('start-screen'); // Show Menu
+        ui.hide('game-screen'); 
+        ui.show('start-screen'); 
         stopConfetti();
     }
     
@@ -760,7 +758,10 @@ class AI {
         return false;
     }
 
+    // FIX: AI can only double if center(0) or it owns it(P2)
     shouldDouble() {
+        if (game.cubeOwner !== 0 && game.cubeOwner !== P2) return false;
+        
         if (game.aiLevel === 1) return false;
         let p1Pip = game.getPip(P1);
         let p2Pip = game.getPip(P2);
