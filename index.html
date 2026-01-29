@@ -2,8 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>숲속의 백개먼 (Ver 16.3 - Final Risk Logic)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#2E7D32">
+    <title>숲속의 백개먼 (Ver 18.0 - Final Risk Sync)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -15,15 +16,26 @@
             --p2-color: #3E2723;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Jua', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Jua', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
         body {
             background-color: var(--bg-color);
             color: white;
-            height: 100vh;
+            height: 100vh; width: 100vw;
             overflow: hidden;
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
+        }
+
+        #portrait-warning {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #1b5e20; z-index: 9999;
+            flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; color: white;
+        }
+        @media (orientation: portrait) { 
+            body.mobile-layout #portrait-warning { display: flex; } 
         }
 
         .screen {
@@ -34,86 +46,128 @@
         }
         .screen.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
 
-        .game-container {
-            display: grid;
-            grid-template-columns: 280px 1fr 280px;
-            width: 98%; height: 95vh; gap: 15px; z-index: 1;
+        /* --- MODE SELECT --- */
+        .mode-select-box { display: flex; gap: 20px; margin-bottom: 30px; }
+        .btn-start-mode {
+            padding: 20px 30px; border-radius: 20px; border: none;
+            font-size: 1.5rem; font-weight: bold; cursor: pointer;
+            transition: 0.2s; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
+        .btn-start-mode:active { transform: scale(0.95); }
+        .btn-mobile { background: #4CAF50; color: white; }
+        .btn-pc { background: #2196F3; color: white; }
 
-        .panel {
-            background: var(--panel-bg); border-radius: 20px; padding: 20px;
-            border: 2px solid rgba(255,255,255,0.1);
-            display: flex; flex-direction: column;
-        }
-        .panel-left { justify-content: flex-start; gap: 15px; }
-        .panel-right { justify-content: space-between; }
+        /* --- LAYOUT --- */
+        .game-container { display: grid; width: 100%; height: 100%; gap: 0; padding: 0; z-index: 1; }
+        
+        body.pc-layout .game-container { grid-template-columns: 280px 1fr 280px; width: 98%; height: 95vh; gap: 15px; }
+        body.mobile-layout .game-container { grid-template-columns: 95px 1fr 95px; width: 100%; height: 100%; }
 
-        .info-header { text-align: center; font-size: 1.5rem; color: var(--accent-color); margin-bottom: 5px; }
+        .panel { background: var(--panel-bg); display: flex; flex-direction: column; z-index: 10; }
+        
+        body.pc-layout .panel { border-radius: 20px; padding: 20px; border: 2px solid rgba(255,255,255,0.1); }
+        body.pc-layout .panel-left { justify-content: flex-start; gap: 15px; }
+        body.pc-layout .panel-right { justify-content: space-between; }
+        
+        body.mobile-layout .panel { padding: 5px; background: rgba(0,0,0,0.7); }
+        body.mobile-layout .panel-left { border-right: 1px solid rgba(255,255,255,0.1); justify-content: flex-start; gap: 5px; }
+        body.mobile-layout .panel-right { border-left: 1px solid rgba(255,255,255,0.1); justify-content: space-between; align-items: center; }
+
+        .info-header { text-align: center; color: var(--accent-color); margin-bottom: 5px; }
+        body.pc-layout .info-header { font-size: 1.5rem; }
+        body.mobile-layout .info-header { font-size: 0.8rem; margin-bottom: 2px; opacity: 0.9; }
 
         .player-box {
-            background: rgba(255,255,255,0.1); padding: 15px; border-radius: 12px;
-            display: flex; flex-direction: column; gap: 5px;
+            background: rgba(255,255,255,0.1); border-radius: 12px;
+            display: flex; flex-direction: column; 
             border-left: 5px solid transparent; transition: 0.3s;
         }
-        .player-box.active { 
-            background: rgba(255,255,255,0.25); border-left-color: #FFD700; transform: scale(1.02); 
-            box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
-        }
-        .p-name { font-size: 1.3rem; font-weight: bold; }
-        .p-stat { display: flex; justify-content: space-between; font-size: 1rem; color: #ddd; }
-        .p-score { color: #FFD700; font-weight: bold; font-size: 1.2rem; }
-        .p-pip { color: #aaa; font-weight: normal; font-size: 0.9rem; }
-        .p-log { font-size: 0.8rem; color: #aaa; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display:flex; align-items:center; gap:5px;}
+        body.pc-layout .player-box { padding: 15px; gap: 5px; }
+        body.mobile-layout .player-box { padding: 6px; gap: 2px; border-radius: 6px; border-left-width: 3px; width: 100%; }
+        .player-box.active { background: rgba(255,255,255,0.25); border-left-color: #FFD700; }
+        
+        .p-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        body.pc-layout .p-name { font-size: 1.3rem; }
+        body.mobile-layout .p-name { font-size: 0.85rem; }
+
+        .p-stat { color: #ddd; display: flex; justify-content: space-between; }
+        body.pc-layout .p-stat { font-size: 1rem; }
+        body.mobile-layout .p-stat { font-size: 0.7rem; align-items: center; }
+
+        .p-score { color: #FFD700; font-weight: bold; }
+        body.pc-layout .p-score { font-size: 1.2rem; }
+        body.mobile-layout .p-score { font-size: 0.9rem; }
+
+        .p-log { font-size: 0.8rem; color: #aaa; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        body.mobile-layout .p-log { display: none; }
 
         .board-area {
-            position: relative; background: #5D4037; border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            display: flex; justify-content: center; align-items: center;
-            overflow: hidden; border: 8px solid #3E2723;
+            position: relative; background: #5D4037; 
+            display: flex; justify-content: center; align-items: center; overflow: hidden;
         }
-        canvas { border-radius: 5px; max-width: 100%; max-height: 100%; cursor: pointer; }
+        body.pc-layout .board-area { border-radius: 15px; border: 8px solid #3E2723; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        body.mobile-layout .board-area { border: none; }
+        
+        canvas { width: 100%; height: 100%; cursor: pointer; display: block; }
 
         .msg-box { 
-            text-align: center; color: white; margin-bottom: 15px; font-size: 1.2rem; height: 2em; 
-            display: flex; align-items: center; justify-content: center; 
-            background: rgba(0,0,0,0.3); border-radius: 10px; 
+            text-align: center; color: white; display: flex; align-items: center; justify-content: center; 
+            background: rgba(0,0,0,0.3); border-radius: 10px; width: 100%;
         }
+        body.pc-layout .msg-box { font-size: 1.2rem; height: 2em; margin-bottom: 15px; }
+        body.mobile-layout .msg-box { font-size: 0.8rem; height: 2em; margin-bottom: 4px; border-radius: 4px; line-height: 1.1; word-break: keep-all; }
 
-        .dice-area {
-            display: flex; flex-direction: column; align-items: center; margin-bottom: 20px;
-        }
-        .dice-box { display: flex; justify-content: center; gap: 15px; height: 60px; }
-        .die { 
-            width: 60px; height: 60px; background: white; color: #333; border-radius: 12px; 
-            display: flex; align-items: center; justify-content: center; 
-            font-size: 2rem; font-weight: bold; box-shadow: 0 5px 0 #999; border: 1px solid #ccc;
-            transition: 0.2s;
-        }
+        .dice-area { display: flex; flex-direction: column; align-items: center; width: 100%; }
+        body.pc-layout .dice-area { margin-bottom: 20px; }
+        body.mobile-layout .dice-area { margin-bottom: 5px; }
+
+        .dice-box { display: flex; justify-content: center; }
+        body.pc-layout .dice-box { gap: 15px; height: 60px; }
+        body.mobile-layout .dice-box { gap: 4px; height: 32px; margin-bottom: 2px; }
+
+        .die { background: white; color: #333; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: 0.2s; }
+        body.pc-layout .die { width: 60px; height: 60px; border-radius: 12px; font-size: 2rem; box-shadow: 0 5px 0 #999; }
+        body.mobile-layout .die { width: 32px; height: 32px; border-radius: 6px; font-size: 1.1rem; box-shadow: 0 2px 0 #999; }
         .die.used { opacity: 0.3; transform: scale(0.85); box-shadow: none; filter: grayscale(100%); }
-        .moves-left { 
-            margin-top: 8px; font-size: 0.9rem; color: #FFD700; background: rgba(0,0,0,0.5); 
-            padding: 2px 10px; border-radius: 10px; visibility: hidden;
-        }
+        
+        .moves-left { color: #FFD700; background: rgba(0,0,0,0.5); visibility: hidden; }
+        body.pc-layout .moves-left { margin-top: 8px; font-size: 0.9rem; padding: 2px 10px; border-radius: 10px; }
+        body.mobile-layout .moves-left { font-size: 0.65rem; padding: 1px 4px; border-radius: 4px; white-space: nowrap; }
         .moves-left.show { visibility: visible; }
 
         .btn { 
-            padding: 15px; font-size: 1.1rem; border: none; border-radius: 12px; 
-            cursor: pointer; color: white; font-weight: bold; box-shadow: 0 4px 0 rgba(0,0,0,0.3); 
-            width: 100%; margin-bottom: 10px; transition: transform 0.1s; 
+            border: none; cursor: pointer; color: white; font-weight: bold; width: 100%; transition: transform 0.1s; 
+            display: flex; justify-content: center; align-items: center;
         }
-        .btn:active { transform: translateY(3px); box-shadow: none; }
+        .btn:active { transform: translateY(2px); box-shadow: none; }
         .btn:disabled { background: #78909C; opacity: 0.5; cursor: not-allowed; }
+        
+        body.pc-layout .btn { padding: 15px; font-size: 1.1rem; border-radius: 12px; box-shadow: 0 4px 0 rgba(0,0,0,0.3); margin-bottom: 10px; }
+        body.pc-layout .sub-btn-wrapper { display: flex; gap: 10px; width: 100%; }
+        
+        body.mobile-layout .btn { padding: 0; height: 38px; font-size: 0.85rem; border-radius: 6px; box-shadow: 0 2px 0 rgba(0,0,0,0.3); margin-bottom: 4px; }
+        body.mobile-layout .btn-roll { font-size: 0.95rem; }
+        body.mobile-layout .btn-double { height: 30px; font-size: 0.8rem; }
+        body.mobile-layout .sub-btn-wrapper { display: flex; gap: 3px; margin-top: 2px; width: 100%; }
+        body.mobile-layout .btn-sub { font-size: 1rem; height: 34px; flex: 1; }
+
         .btn-roll { background: #FF6F00; }
         .btn-double { background: #5E35B1; }
-        .btn-sub { background: #546E7A; font-size: 1rem; padding: 10px; }
+        .btn-sub { background: #546E7A; }
         .btn-hint { background: #039BE5; }
 
         /* Menu */
         .menu-box {
-            background: white; color: #333; padding: 30px; border-radius: 25px;
-            width: 450px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            background: white; color: #333; border-radius: 25px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            overflow-y: auto; max-height: 90vh;
         }
-        .menu-title { color: var(--bg-color); font-size: 2.5rem; margin-bottom: 20px; font-weight: bold; }
+        body.pc-layout .menu-box { padding: 30px; width: 450px; }
+        body.mobile-layout .menu-box { padding: 20px; width: 85%; max-width: 400px; border-radius: 15px; }
+
+        .menu-title { color: var(--bg-color); font-weight: bold; margin-bottom: 20px; }
+        body.pc-layout .menu-title { font-size: 2.5rem; }
+        body.mobile-layout .menu-title { font-size: 1.8rem; margin-bottom: 10px; }
+
         .menu-label { text-align: left; font-weight: bold; color: #555; margin: 15px 0 5px; cursor: pointer; user-select: none; }
         
         .toggle-group { display: flex; background: #eee; border-radius: 15px; padding: 4px; margin-bottom: 15px; }
@@ -121,14 +175,23 @@
         .toggle-opt.selected { background: #FF6F00; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
 
         .btn-mode {
-            display: flex; align-items: center; padding: 12px 15px; border-radius: 12px; 
+            display: flex; align-items: center; border-radius: 12px; 
             border: 2px solid #eee; background: white; cursor: pointer; transition: 0.2s;
             margin-bottom: 8px; width: 100%; text-align: left;
+            justify-content: flex-start;
         }
+        body.pc-layout .btn-mode { padding: 12px 15px; }
+        body.mobile-layout .btn-mode { padding: 8px; margin-bottom: 5px; }
+
         .btn-mode:hover { border-color: #FF6F00; transform: translateX(5px); }
-        .btn-mode .badge { background: #555; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 10px; min-width: 45px; text-align:center;}
+        .btn-mode .badge { 
+            background: #555; color: white; padding: 2px 8px; border-radius: 4px; 
+            font-size: 0.8rem; margin-right: 10px; min-width: 45px; text-align:center; 
+            flex-shrink: 0;
+        }
+        .btn-mode .desc { margin-left: auto; font-size: 0.8rem; color: #999; white-space: nowrap; }
+
         .btn-mode.pvp { background: #E3F2FD; border-color: #90CAF9; }
-        
         .pvp-title.reception { color: #00E676 !important; text-shadow: 0 0 5px rgba(0,230,118,0.3); }
 
         .toast {
@@ -143,12 +206,28 @@
         .modal-box { background: white; color: #333; padding: 30px; border-radius: 20px; text-align: center; width: 380px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
         
         #confetti-canvas { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 1500; }
-
+        #mode-select-screen { z-index: 3000; background: #1b5e20; }
     </style>
 </head>
 <body>
 
-    <div id="start-screen" class="screen">
+    <div id="portrait-warning">
+        <div style="font-size:3rem;">📱🔄</div>
+        <h2>가로로 회전해주세요</h2>
+    </div>
+
+    <div id="mode-select-screen" class="screen">
+        <div style="text-align:center;">
+            <h1 style="font-size:3rem; margin-bottom:40px; color:#FFD700;">🎲 숲속의 백개먼</h1>
+            <div class="mode-select-box">
+                <button class="btn-start-mode btn-mobile" onclick="ui.setMode('mobile')">📱 모바일 모드</button>
+                <button class="btn-start-mode btn-pc" onclick="ui.setMode('pc')">💻 PC 모드</button>
+            </div>
+            <div style="color:#aaa; font-size:0.9rem;">Ver 18.0 Final</div>
+        </div>
+    </div>
+
+    <div id="start-screen" class="screen hidden">
         <div class="menu-box">
             <div class="menu-title">🎲 숲속의 백개먼</div>
             
@@ -162,39 +241,49 @@
             <div class="menu-label" onclick="menu.triggerSecret()">🎮 대전 모드</div>
             
             <button class="btn-mode pvp" onclick="game.startPvP()">
-                <span style="font-size:1.5rem; margin-right:10px;">👥</span>
-                <div>
+                <span class="icon-span" style="font-size:1.5rem; margin-right:10px;">👥</span>
+                <div style="flex:1;">
                     <div id="pvp-text" class="pvp-title" style="font-weight:bold; font-size:1.1rem; color:#1565C0;">2인 대전 (PvP)</div>
                     <div style="font-size:0.8rem; color:#555;">친구와 함께 플레이</div>
                 </div>
             </button>
 
             <div style="height:1px; background:#ddd; margin:15px 0;"></div>
-            <div style="font-size:0.9rem; color:#888; margin-bottom:5px; text-align:left;">혼자 하기 (vs AI)</div>
-
-            <button class="btn-mode" onclick="game.startPvE(1)">
-                <span class="badge" style="background:#FF9800">Lv.1</span> 🐿️ 길치 다람쥐 <span style="margin-left:auto; font-size:0.8rem; color:#999;">초보</span>
-            </button>
-            <button class="btn-mode" onclick="game.startPvE(2)">
-                <span class="badge" style="background:#795548">Lv.2</span> 🦝 심술 너구리 <span style="margin-left:auto; font-size:0.8rem; color:#999;">공격형</span>
-            </button>
-            <button class="btn-mode" onclick="game.startPvE(3)">
-                <span class="badge" style="background:#E65100">Lv.3</span> 🦊 얌체 여우 <span style="margin-left:auto; font-size:0.8rem; color:#999;">방어형</span>
-            </button>
-            <button class="btn-mode" onclick="game.startPvE(4)">
-                <span class="badge" style="background:#455A64">Lv.4</span> 🦉 똑똑 부엉이 <span style="margin-left:auto; font-size:0.8rem; color:#999;">숙련자</span>
-            </button>
-            <button class="btn-mode" onclick="game.startPvE(5)">
-                <span class="badge" style="background:#2E7D32">Lv.5</span> 🌳 숲의 주인 <span style="margin-left:auto; font-size:0.8rem; color:#999;">초고수</span>
-            </button>
+            
+            <div id="pve-list">
+                <button class="btn-mode" onclick="game.startPvE(1)">
+                    <span class="badge" style="background:#FF9800">Lv.1</span> 
+                    <span>🐿️ 길치 다람쥐</span> 
+                    <span class="desc">초보</span>
+                </button>
+                <button class="btn-mode" onclick="game.startPvE(2)">
+                    <span class="badge" style="background:#795548">Lv.2</span> 
+                    <span>🦝 심술 너구리</span> 
+                    <span class="desc">공격형</span>
+                </button>
+                <button class="btn-mode" onclick="game.startPvE(3)">
+                    <span class="badge" style="background:#E65100">Lv.3</span> 
+                    <span>🦊 얌체 여우</span> 
+                    <span class="desc">방어형</span>
+                </button>
+                <button class="btn-mode" onclick="game.startPvE(4)">
+                    <span class="badge" style="background:#455A64">Lv.4</span> 
+                    <span>🦉 똑똑 부엉이</span> 
+                    <span class="desc">숙련자</span>
+                </button>
+                <button class="btn-mode" onclick="game.startPvE(5)">
+                    <span class="badge" style="background:#2E7D32">Lv.5</span> 
+                    <span>🌳 숲의 주인</span> 
+                    <span class="desc">초고수</span>
+                </button>
+            </div>
         </div>
     </div>
 
     <div id="game-screen" class="screen hidden" style="background:none; pointer-events:auto;">
         <div class="game-container">
             <div class="panel panel-left">
-                <div class="info-header">SCORE BOARD</div>
-                
+                <div class="info-header">SCORE</div>
                 <div id="p1-box" class="player-box">
                     <div class="p-name">🐰 P1 (나)</div>
                     <div class="p-stat">
@@ -203,7 +292,6 @@
                     </div>
                     <div class="p-log" id="log-p1">기록 없음</div>
                 </div>
-
                 <div id="p2-box" class="player-box">
                     <div class="p-name" id="p2-name">🐻 P2</div>
                     <div class="p-stat">
@@ -212,9 +300,8 @@
                     </div>
                     <div class="p-log" id="log-p2">기록 없음</div>
                 </div>
-
                 <div style="margin-top:auto; text-align:center;">
-                    <div style="font-size:0.8rem; color:#aaa;">DOUBLING CUBE</div>
+                    <div style="font-size:0.8rem; color:#aaa;">CUBE</div>
                     <div style="font-size:2.5rem; font-weight:bold; color:#FFD700;" id="cube-val">1</div>
                     <div style="font-size:0.9rem; color:#ccc;" id="cube-owner">중앙</div>
                 </div>
@@ -225,26 +312,24 @@
             </div>
 
             <div class="panel panel-right">
-                <div>
+                <div style="width:100%">
                     <div class="msg-box" id="msg-box">준비 완료</div>
                     <div class="dice-area">
                         <div class="dice-box">
                             <div class="die" id="die1">?</div>
                             <div class="die" id="die2">?</div>
                         </div>
-                        <div id="moves-left" class="moves-left">남은 이동: 0회</div>
+                        <div id="moves-left" class="moves-left">남은: 0</div>
                     </div>
-                    
-                    <button id="btn-roll" class="btn btn-roll" onclick="game.rollDice()">🎲 주사위 굴리기</button>
-                    <button id="btn-double" class="btn btn-double" onclick="game.humanOfferDouble()">💎 2배 (Double)</button>
+                    <button id="btn-roll" class="btn btn-roll" onclick="game.rollDice()">🎲 주사위</button>
                 </div>
-                
-                <div>
-                    <div style="display:flex; gap:10px;">
-                        <button id="btn-undo" class="btn btn-sub" onclick="game.undo()">↩️ 무르기</button>
-                        <button id="btn-hint" class="btn btn-hint" onclick="game.getHint()">💡 힌트</button>
+                <div style="width:100%">
+                    <button id="btn-double" class="btn btn-double" onclick="game.humanOfferDouble()">💎 2배</button>
+                    <div class="sub-btn-wrapper">
+                        <button id="btn-undo" class="btn btn-sub" onclick="game.undo()"><span class="btn-text">무르기</span></button>
+                        <button id="btn-hint" class="btn btn-hint" onclick="game.getHint()"><span class="btn-text">힌트</span></button>
+                        <button class="btn btn-sub" onclick="game.toMenu()"><span class="btn-text">메뉴</span></button>
                     </div>
-                    <button class="btn btn-sub" style="margin-top:10px;" onclick="game.toMenu()">🏠 메뉴로</button>
                 </div>
             </div>
         </div>
@@ -255,8 +340,8 @@
             <h2 style="color:#5E35B1; margin-bottom:15px;">💎 더블 제안!</h2>
             <p id="double-msg" style="color:#555; margin-bottom:20px; font-size:1.1rem;">판돈을 2배로 올리시겠습니까?</p>
             <div style="display:flex; gap:10px;">
-                <button class="btn" style="background:#4CAF50;" onclick="game.resolveDouble(true)">수락 (Take)</button>
-                <button class="btn" style="background:#F44336;" onclick="game.resolveDouble(false)">포기 (Drop)</button>
+                <button class="btn" style="background:#4CAF50;" onclick="game.resolveDouble(true)">수락</button>
+                <button class="btn" style="background:#F44336;" onclick="game.resolveDouble(false)">포기</button>
             </div>
         </div>
     </div>
@@ -273,12 +358,8 @@
     <canvas id="confetti-canvas"></canvas>
 
 <script>
-/**
- * Forest Backgammon - Ver 16.3 (Risk Logic Fixed)
- */
-
-const P1 = 1; // White (Rabbit)
-const P2 = 2; // Black (Bear)
+const P1 = 1; 
+const P2 = 2; 
 const OFF = 26; 
 
 const menu = {
@@ -581,18 +662,26 @@ class Backgammon {
         if(best) {
             this.hintMove = best;
             
+            // [Simulation for Risk]
             let tempBoard = JSON.parse(JSON.stringify(this.board));
+            let tempBar = {...game.bar};
+            
             let s = (best.from==='BAR')?(this.turn===P1?0:25):best.from;
             let d = (best.to==='OFF')?(this.turn===P1?25:0):best.to;
             
             if(s===0 || s===25) {} else tempBoard[s].pop();
             
             if(d!==25 && d!==0) { 
-                if(tempBoard[d].length===1 && tempBoard[d][0]!==this.turn) tempBoard[d]=[]; 
-                tempBoard[d].push(this.turn); 
+                if(tempBoard[d].length===1 && tempBoard[d][0]!==this.turn) {
+                    let hitP = tempBoard[d].pop();
+                    tempBar[hitP]++; 
+                    tempBoard[d].push(this.turn); 
+                } else {
+                    tempBoard[d].push(this.turn); 
+                }
             }
             
-            let risk = ai.calculateRiskProbability(tempBoard, this.turn);
+            let risk = ai.calculateRiskProbability(tempBoard, this.turn, tempBar);
             let reason = best.reason || "추천 수";
             
             ui.updateBoard();
@@ -646,34 +735,36 @@ class Backgammon {
     finishGame(isDrop) {
         let winner = this.turn;
         let points = this.cube;
-        let title = "승리!";
-        let desc = "승리!";
+        let winnerName = (winner === P1) ? "🐰 당신" : (this.isPvP ? "🐻 P2" : "🐻 AI");
+        let title = `${winnerName}의 승리!`;
+        let desc = "";
         
         if (!isDrop) {
             let loser = (winner === P1) ? P2 : P1;
             if (this.off[loser] === 0) {
                 if (this.bar[loser] > 0 || this.hasCheckerInHome(loser, winner)) {
-                    points *= 3; title = "백개먼 승리! (3배)";
+                    points *= 3; desc = "백개먼 승리 (3배)";
                 } else {
-                    points *= 2; title = "개먼 승리! (2배)";
+                    points *= 2; desc = "개먼 승리 (2배)";
                 }
+            } else {
+                desc = "일반 승리";
             }
-            desc = title;
         } else {
-            title = "기권 승!";
-            desc = "상대방이 기권했습니다.";
+            title = `${winnerName}의 기권 승`;
+            desc = "상대방의 기권";
         }
         
         this.matchScore[winner] += points;
         ui.updateScore();
 
         if (this.matchScore[winner] >= menu.targetScore) {
-            let winText = (winner === P1) ? "🐰 당신의 최종 승리!" : "🐻 상대방의 최종 승리!";
+            let winText = (winner === P1) ? "🐰 당신이 최종 우승!" : `${winnerName} 최종 우승!`;
             if(this.isPvP) winText = (winner === P1) ? "🐰 P1 최종 승리!" : "🐻 P2 최종 승리!";
             ui.showWinModal(true, winText, `최종 스코어 ${this.matchScore[P1]} : ${this.matchScore[P2]}`);
             startConfetti();
         } else {
-            ui.showWinModal(false, title, desc);
+            ui.showWinModal(false, title, `획득 점수: ${points}점 (${desc})`);
             if(winner === P1) startConfetti();
         }
     }
@@ -764,24 +855,84 @@ class AI {
             case 3: if (isBuild) score += 2000; score += progress; break;
             case 4: 
             case 5:
-                if (isHit) { score += 1000; reason = "상대방의 빈틈(Blot)을 공격하세요!"; }
-                else if (isBuild) { score += 600; reason = "안전지대를 만들어 수비를 강화합니다."; }
-                else { score += progress * 2; reason = "잡히지 않게 안전한 곳으로 전진합니다."; }
+                score += progress; 
                 
-                if (level === 5 && !isBuild && !isHit && this.isRisky(to, player)) { 
-                    score -= 800; 
-                    reason = "위험이 있지만 어쩔 수 없는 수입니다."; 
+                // [FIX] Hit Score Logic Reversed & Symmetrical
+                if (isHit) {
+                    let hitBase = 40;
+                    let safeZoneBonus = 0;
+                    
+                    // P1(White): Moves 1->24. Home 19-24. 
+                    // P1's safe hit zone is 1-18 (far from P2 entry at 24).
+                    // P2(Black): Moves 24->1. Home 1-6.
+                    // P2's safe hit zone is 7-24 (far from P1 entry at 1).
+                    
+                    if (isP1) {
+                        if (to <= 18) safeZoneBonus = 30; // Outer hit (Safe)
+                    } else {
+                        if (to >= 7) safeZoneBonus = 30; // Outer hit (Safe)
+                    }
+                    
+                    score += hitBase + safeZoneBonus;
+                    reason = safeZoneBonus > 0 ? "안전한 곳에서 상대를 제압합니다." : "공격";
                 }
+
+                // Build Logic
+                if (isBuild) {
+                    let buildBase = 40;
+                    if (this.isConnected(to, player)) { buildBase += 30; reason = "벽을 세워 상대를 가둡니다."; }
+                    
+                    // Home Board Build is critical for both
+                    let isHome = (isP1 && to >= 19) || (!isP1 && to <= 6);
+                    if (isHome) { buildBase += 50; reason = "홈 보드를 강력하게 구축합니다."; }
+                    
+                    score += buildBase;
+                }
+
+                // [CRITICAL] Risk Logic with Hit consideration
+                // If we hit, opponent will be on bar. We must check re-entry risk.
+                let opponentOnBar = game.bar[opponent] > 0 || isHit;
+                
+                if (!isBuild && this.isRisky(to, player, opponentOnBar)) { 
+                    score -= 200; 
+                    reason = "위험합니다. (역공 주의)"; 
+                }
+                
+                if (!isHit && !isBuild && score > 0 && !reason) { reason = "안전하게 이동합니다."; }
                 break;
         }
         return {score, reason};
     }
 
-    isRisky(targetIdx, player) {
+    isConnected(idx, player) {
+        let neighbors = [idx-1, idx+1];
+        for(let n of neighbors) {
+            if(n>=1 && n<=24 && game.board[n].length >= 2 && game.board[n][0] === player) return true;
+        }
+        return false;
+    }
+
+    // [FIX] Symmetrical Risk Check (P1 vs P2)
+    isRisky(targetIdx, player, opponentOnBar) {
+        let opponent = (player === P1) ? P2 : P1;
+        
+        // 1. Re-entry Risk (If opponent is on bar)
+        if (opponentOnBar) {
+            let myHomeStart = (player === P1) ? 19 : 1;
+            let myHomeEnd = (player === P1) ? 24 : 6;
+            // If I am in my home (their entry zone), it's risky
+            if (targetIdx >= myHomeStart && targetIdx <= myHomeEnd) return true;
+        }
+
+        // 2. Board Risk (Opponent nearby)
         let start = targetIdx + 1;
         let end = Math.min(24, targetIdx + 6);
-        let opponent = (player === P1) ? P2 : P1;
+        // If P2, opponent (P1) is "behind" in indices (moves 1->24)
+        // Wait, P2 moves 24->1. "Behind" means higher index? No.
+        // P2 at 20. P1 comes from 1. P1 hits 20 from 14-19.
+        // So we check targetIdx - 6 to targetIdx - 1.
         if (player === P2) { start = Math.max(1, targetIdx - 6); end = targetIdx - 1; }
+        
         for (let i = start; i <= end; i++) {
             if (game.board[i].length > 0 && game.board[i][0] === opponent) return true;
         }
@@ -803,7 +954,6 @@ class AI {
             let aiHome = this.countHomePoints(P2);
             let p1Home = this.countHomePoints(P1);
             score += (aiHome - p1Home) * 6;
-            
             score += game.bar[P1] * 12;
             score -= game.bar[P2] * 12;
         }
@@ -820,8 +970,7 @@ class AI {
         return count;
     }
 
-    // FIX: Risk calc including opponent re-entry from Bar
-    calculateRiskProbability(tempBoard, player) {
+    calculateRiskProbability(tempBoard, player, tempBar = game.bar) {
         let opponent = (player === P1) ? P2 : P1;
         let hitCount = 0;
         let blots = [];
@@ -830,18 +979,18 @@ class AI {
 
         for (let d1 = 1; d1 <= 6; d1++) {
             for (let d2 = 1; d2 <= 6; d2++) {
-                if (this.canOpponentHit(tempBoard, opponent, blots, d1, d2)) hitCount++;
+                if (this.canOpponentHit(tempBoard, opponent, blots, d1, d2, tempBar)) hitCount++;
             }
         }
         return ((hitCount / 36) * 100).toFixed(1);
     }
 
-    canOpponentHit(board, opponent, blots, d1, d2) {
+    canOpponentHit(board, opponent, blots, d1, d2, bar) {
         let moves = [d1, d2];
         if (d1 === d2) moves = [d1, d1, d1, d1]; 
 
-        // 1. Re-entry Hit Check
-        if (game.bar[opponent] > 0) {
+        // 1. Re-entry Hit Check (Most Dangerous)
+        if (bar[opponent] > 0) {
             let start = (opponent === P1) ? 0 : 25;
             let dir = (opponent === P1) ? 1 : -1;
             for (let m of moves) {
@@ -858,13 +1007,10 @@ class AI {
         for(let src of sources) {
             let start = src;
             let dir = (opponent === P1) ? 1 : -1;
-            
-            // Single Move Hit
-            for(let m of moves) {
+            for (let m of moves) {
                 let dest = start + (m * dir);
                 if(blots.includes(dest)) return true;
             }
-            // Combo Move Hit
             if(moves.length >= 2) {
                 let comboDest = start + ((moves[0] + moves[1]) * dir);
                 if(blots.includes(comboDest)) return true;
@@ -908,8 +1054,17 @@ const renderer = {
     
     resize: () => {
         let p = document.getElementById('board-container');
-        renderer.canvas.width = p.clientWidth;
-        renderer.canvas.height = p.clientHeight;
+        const dpr = window.devicePixelRatio || 1;
+        
+        renderer.canvas.style.width = p.clientWidth + 'px';
+        renderer.canvas.style.height = p.clientHeight + 'px';
+        
+        renderer.canvas.width = p.clientWidth * dpr;
+        renderer.canvas.height = p.clientHeight * dpr;
+        
+        renderer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        renderer.ctx.scale(dpr, dpr);
+        
         renderer.w = p.clientWidth;
         renderer.h = p.clientHeight;
         renderer.draw();
@@ -925,12 +1080,22 @@ const renderer = {
         ctx.fillStyle = '#D7CCC8';
         ctx.fillRect(0,0,w,h);
         
+        ctx.strokeStyle = '#4E342E';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(0,0,w,h);
+
         const barW = w * 0.08;
         const triW = (w - barW) / 12;
-        const triH = h * 0.4;
+        const triH = h * 0.42; 
+
+        // [RESTORED] Draw Numbers
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
 
         for(let i=1; i<=24; i++) {
-            let pos = renderer.getPos(i, w, h, triW, barW);
+            let pos = renderer.getPos(i, w, h, triW, barW, triH);
+            
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.baseY);
             ctx.lineTo(pos.x + triW, pos.baseY);
@@ -939,9 +1104,8 @@ const renderer = {
             if(i>=13) ctx.fillStyle = (i%2!==0) ? '#5D4037' : '#FFCC80';
             ctx.fill();
             
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.font = 'bold 13px sans-serif';
-            ctx.textAlign = 'center';
+            // Numbers
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
             let numY = pos.isTop ? 20 : h - 10;
             ctx.fillText(i, pos.x + triW/2, numY);
 
@@ -954,9 +1118,11 @@ const renderer = {
             }
 
             let stack = game.board[i];
-            let r = Math.min(triW/2 - 2, 22);
+            let r = Math.min(triW/2 - 2, 16); 
+            if (document.body.classList.contains('pc-layout')) r = Math.min(triW/2 - 2, 22);
+
             stack.forEach((p, idx) => {
-                let cy = pos.isTop ? pos.baseY + r + 5 + (idx*r*2) : pos.baseY - r - 5 - (idx*r*2);
+                let cy = pos.isTop ? pos.baseY + r + 3 + (idx*r*2) : pos.baseY - r - 3 - (idx*r*2);
                 if(stack.length > 5) cy = pos.isTop ? pos.baseY + r + (idx*((triH-r)/stack.length)) : pos.baseY - r - (idx*((triH-r)/stack.length));
                 renderer.drawPiece(pos.x + triW/2, cy, r, p, (game.selectedPoint === i && idx === stack.length-1));
             });
@@ -964,22 +1130,26 @@ const renderer = {
 
         ctx.fillStyle = '#4E342E';
         ctx.fillRect((w-barW)/2, 0, barW, h);
+        
         let p1b = game.bar[P1], p2b = game.bar[P2];
-        for(let i=0; i<p1b; i++) renderer.drawPiece(w/2, h*0.75 + (i*15), 20, P1, (game.selectedPoint==='BAR' && i===p1b-1));
-        for(let i=0; i<p2b; i++) renderer.drawPiece(w/2, h*0.25 - (i*15), 20, P2, false);
+        let rBar = 18;
+        if(document.body.classList.contains('pc-layout')) rBar = 20;
+
+        for(let i=0; i<p1b; i++) renderer.drawPiece(w/2, h*0.75 + (i*15), rBar, P1, (game.selectedPoint==='BAR' && i===p1b-1));
+        for(let i=0; i<p2b; i++) renderer.drawPiece(w/2, h*0.25 - (i*15), rBar, P2, false);
 
         ctx.fillStyle = 'rgba(0,0,0,0.1)';
-        ctx.fillRect(w-40, 0, 40, h);
+        ctx.fillRect(w-35, 0, 35, h); 
         if (game.validDestinations.includes('OFF')) {
             ctx.fillStyle = 'rgba(0,255,0,0.4)';
-            ctx.fillRect(w-40, (game.turn===P1?0:h/2), 40, h/2);
+            ctx.fillRect(w-35, (game.turn===P1?0:h/2), 35, h/2);
         }
 
         if (game.hintMove) {
             let from = game.hintMove.from;
             let to = game.hintMove.to;
-            let start = renderer.getCenter(from, w, h, triW, barW);
-            let end = renderer.getCenter(to, w, h, triW, barW);
+            let start = renderer.getCenter(from, w, h, triW, barW, triH);
+            let end = renderer.getCenter(to, w, h, triW, barW, triH);
             
             ctx.beginPath();
             ctx.moveTo(start.x, start.y);
@@ -989,26 +1159,26 @@ const renderer = {
             ctx.lineCap = 'round';
             ctx.stroke();
             
-            ctx.beginPath(); ctx.arc(start.x, start.y, 8, 0, Math.PI*2);
+            ctx.beginPath(); ctx.arc(start.x, start.y, 6, 0, Math.PI*2);
             ctx.fillStyle = '#00BCD4'; ctx.fill();
-            ctx.beginPath(); ctx.arc(end.x, end.y, 8, 0, Math.PI*2);
+            ctx.beginPath(); ctx.arc(end.x, end.y, 6, 0, Math.PI*2);
             ctx.fill();
         }
     },
 
-    getPos: (i, w, h, tw, bw) => {
+    getPos: (i, w, h, tw, bw, th) => {
         let x, baseY, tipY, isTop;
-        if (i<=6) { x = w - (i*tw); baseY = h; tipY = h - (h*0.4); isTop=false; }
-        else if (i<=12) { x = w - bw - (i*tw); baseY = h; tipY = h - (h*0.4); isTop=false; }
-        else if (i<=18) { x = w - bw - ((25-i)*tw); baseY = 0; tipY = h*0.4; isTop=true; }
-        else { x = w - ((25-i)*tw); baseY = 0; tipY = h*0.4; isTop=true; }
+        if (i<=6) { x = w - (i*tw); baseY = h; tipY = h - th; isTop=false; }
+        else if (i<=12) { x = w - bw - (i*tw); baseY = h; tipY = h - th; isTop=false; }
+        else if (i<=18) { x = w - bw - ((25-i)*tw); baseY = 0; tipY = th; isTop=true; }
+        else { x = w - ((25-i)*tw); baseY = 0; tipY = th; isTop=true; }
         return {x, baseY, tipY, isTop};
     },
 
-    getCenter: (i, w, h, tw, bw) => {
+    getCenter: (i, w, h, tw, bw, th) => {
         if(i==='BAR') return {x: w/2, y: (game.turn===P1 ? h*0.75 : h*0.25)};
-        if(i==='OFF') return {x: w-20, y: (game.turn===P1 ? h*0.25 : h*0.75)};
-        let p = renderer.getPos(i, w, h, tw, bw);
+        if(i==='OFF') return {x: w-17, y: (game.turn===P1 ? h*0.25 : h*0.75)};
+        let p = renderer.getPos(i, w, h, tw, bw, th);
         return {x: p.x + tw/2, y: (p.baseY + p.tipY)/2};
     },
 
@@ -1027,27 +1197,40 @@ const renderer = {
     }
 };
 
-renderer.canvas.addEventListener('click', e => {
+function handleInput(e) {
     if (!game.isPvP && game.turn !== P1) return;
+    if (e.type === 'touchstart') e.preventDefault(); 
+
     const rect = renderer.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    let clientX = e.clientX;
+    let clientY = e.clientY;
+
+    if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    }
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
     const w = renderer.w;
     
-    if(x > w/2 - 30 && x < w/2 + 30) { if(game.bar[game.turn]>0) handleClick('BAR'); return; }
-    if(x > w-40) { handleClick('OFF'); return; }
+    if(x > w-35) { handleClick('OFF'); return; }
+    if(x > w/2 - 25 && x < w/2 + 25) { if(game.bar[game.turn]>0) handleClick('BAR'); return; }
 
     const bw = w * 0.08, tw = (w - bw) / 12;
     let idx = -1;
     
     for(let i=1; i<=24; i++) {
-        let p = renderer.getPos(i, w, renderer.h, tw, bw);
+        let p = renderer.getPos(i, w, renderer.h, tw, bw, renderer.h*0.42);
         if (x >= p.x && x <= p.x+tw) {
             if ((!p.isTop && y > renderer.h/2) || (p.isTop && y < renderer.h/2)) idx = i;
         }
     }
     if (idx !== -1) handleClick(idx);
-});
+}
+
+renderer.canvas.addEventListener('mousedown', handleInput);
+renderer.canvas.addEventListener('touchstart', handleInput, {passive: false});
 
 function handleClick(idx) {
     if (game.selectedPoint !== -1) {
@@ -1072,6 +1255,33 @@ function handleClick(idx) {
 }
 
 const ui = {
+    setMode: (mode) => {
+        const body = document.body;
+        body.classList.remove('pc-layout', 'mobile-layout');
+        body.classList.add(mode + '-layout');
+        
+        const btnUndo = document.getElementById('btn-undo');
+        const btnHint = document.getElementById('btn-hint');
+        const btnMenu = document.querySelector('.btn-sub:last-child');
+        const btnRoll = document.getElementById('btn-roll');
+
+        if (mode === 'mobile') {
+            btnUndo.innerHTML = '↩️';
+            btnHint.innerHTML = '💡';
+            btnMenu.innerHTML = '🏠';
+            btnRoll.innerHTML = '🎲 굴리기';
+        } else {
+            btnUndo.innerHTML = '<span class="btn-text">무르기</span>';
+            btnHint.innerHTML = '<span class="btn-text">힌트</span>';
+            btnMenu.innerHTML = '<span class="btn-text">메뉴</span>';
+            btnRoll.innerHTML = '🎲 주사위 굴리기';
+        }
+
+        ui.hide('mode-select-screen');
+        ui.show('start-screen');
+        setTimeout(() => renderer.resize(), 100);
+    },
+
     show: (id) => document.getElementById(id).classList.remove('hidden'),
     hide: (id) => document.getElementById(id).classList.add('hidden'),
     showModal: (id, txt) => {
@@ -1100,7 +1310,7 @@ const ui = {
         document.getElementById('score-p2').innerText = game.matchScore[P2];
         document.getElementById('cube-val').innerText = game.cube;
         let ownerText = "중앙";
-        if(game.cubeOwner === P1) ownerText = "🐰 P1";
+        if(game.cubeOwner === P1) ownerText = "🐰 나";
         if(game.cubeOwner === P2) ownerText = "🐻 P2";
         document.getElementById('cube-owner').innerText = ownerText;
     },
@@ -1109,8 +1319,8 @@ const ui = {
         const el2 = document.getElementById('pip-p2');
         const new1 = game.getPip(P1);
         const new2 = game.getPip(P2);
-        if (el1.innerText != new1) { el1.innerText = new1; el1.classList.remove('update'); void el1.offsetWidth; el1.classList.add('update'); }
-        if (el2.innerText != new2) { el2.innerText = new2; el2.classList.remove('update'); void el2.offsetWidth; el2.classList.add('update'); }
+        el1.innerText = new1;
+        el2.innerText = new2;
         
         document.getElementById('p1-box').classList.toggle('active', game.turn === P1);
         document.getElementById('p2-box').classList.toggle('active', game.turn === P2);
@@ -1130,7 +1340,7 @@ const ui = {
             }
         }
         const ml = document.getElementById('moves-left');
-        ml.innerText = `남은 이동: ${game.moves.length}회`;
+        ml.innerText = `남은: ${game.moves.length}`;
         ml.classList.toggle('show', game.moves.length > 0);
     },
     updateBoard: () => { renderer.draw(); },
@@ -1150,16 +1360,16 @@ const ui = {
         btnUndo.disabled = !isMyTurn;
 
         if (isMyTurn) {
-            let playerIcon = (game.turn === P1) ? "🐰 P1" : "🐻 P2";
-            msg.innerText = (p === 'ROLL') ? `${playerIcon}: 주사위를 굴리세요` : `${playerIcon}: 말을 움직이세요`;
+            let playerIcon = (game.turn === P1) ? "🐰 나" : "🐻 P2";
+            msg.innerText = (p === 'ROLL') ? `${playerIcon}: 굴리세요` : `${playerIcon}: 이동하세요`;
         } else {
-            msg.innerText = "상대 턴 진행 중...";
+            msg.innerText = "상대 턴...";
         }
     },
     toggleRollBtn: (en) => document.getElementById('btn-roll').disabled = !en,
     toggleDoubleBtn: (en) => document.getElementById('btn-double').disabled = !en,
     setMsg: (t) => document.getElementById('msg-box').innerText = t,
-    log: (p, t) => document.getElementById(p===P1?'log-p1':'log-p2').innerText = t,
+    log: (p, t) => {},
     toast: (msg) => {
         let t = document.getElementById('toast');
         t.innerText = msg; t.classList.add('show');
@@ -1170,7 +1380,7 @@ const ui = {
 
 let game = new Backgammon();
 let ai = new AI();
-window.onload = () => { ui.show('start-screen'); window.addEventListener('resize', renderer.resize); };
+window.onload = () => { ui.show('mode-select-screen'); window.addEventListener('resize', renderer.resize); };
 
 // Confetti
 const cvs = document.getElementById('confetti-canvas');
@@ -1179,7 +1389,7 @@ let particles = [], animId;
 function resizeConfetti() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; }
 window.addEventListener('resize', resizeConfetti); resizeConfetti();
 function createParticle() { return { x: Math.random()*cvs.width, y: Math.random()*cvs.height-cvs.height, size: Math.random()*5+5, speedY: Math.random()*3+2, speedX: Math.random()*2-1, color: `hsl(${Math.random()*360},100%,50%)` }; }
-function startConfetti() { stopConfetti(); particles = Array.from({length:100}, createParticle); animateConfetti(); }
+function startConfetti() { stopConfetti(); particles = Array.from({length:60}, createParticle); animateConfetti(); }
 function stopConfetti() { if(animId) cancelAnimationFrame(animId); particles = []; c2d.clearRect(0,0,cvs.width,cvs.height); }
 function animateConfetti() {
     c2d.clearRect(0,0,cvs.width,cvs.height);
