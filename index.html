@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>숲속의 백개먼 (Ver 16.1 - Perfect Reception)</title>
+    <title>숲속의 백개먼 (Ver 16.3 - Final Risk Logic)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -114,7 +114,6 @@
             width: 450px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
         }
         .menu-title { color: var(--bg-color); font-size: 2.5rem; margin-bottom: 20px; font-weight: bold; }
-        
         .menu-label { text-align: left; font-weight: bold; color: #555; margin: 15px 0 5px; cursor: pointer; user-select: none; }
         
         .toggle-group { display: flex; background: #eee; border-radius: 15px; padding: 4px; margin-bottom: 15px; }
@@ -130,7 +129,6 @@
         .btn-mode .badge { background: #555; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 10px; min-width: 45px; text-align:center;}
         .btn-mode.pvp { background: #E3F2FD; border-color: #90CAF9; }
         
-        /* Stealth Mode Indicator */
         .pvp-title.reception { color: #00E676 !important; text-shadow: 0 0 5px rgba(0,230,118,0.3); }
 
         .toast {
@@ -276,7 +274,7 @@
 
 <script>
 /**
- * Forest Backgammon - Ver 16.1 (Priority Hit in Reception Mode)
+ * Forest Backgammon - Ver 16.3 (Risk Logic Fixed)
  */
 
 const P1 = 1; // White (Rabbit)
@@ -290,7 +288,6 @@ const menu = {
         document.querySelectorAll('.toggle-opt').forEach(e => e.classList.remove('selected'));
         el.classList.add('selected');
     },
-    // SECRET (Stealth)
     secretClicks: 0,
     secretTimer: null,
     triggerSecret: () => {
@@ -389,7 +386,6 @@ class Backgammon {
         let d1 = Math.floor(Math.random() * 6) + 1;
         let d2 = Math.floor(Math.random() * 6) + 1;
 
-        // [SECRET] Reception Mode with Priority Logic
         if (this.receptionMode && this.turn === P1) {
             let magic = this.findWinningRoll(P1);
             if (magic > 0) d1 = magic;
@@ -414,11 +410,10 @@ class Backgammon {
         }
     }
 
-    // UPDATED: Find hit closer to home (Index 24 for P1)
     findWinningRoll(player) {
         let opponent = (player === P1) ? P2 : P1;
         let bestRoll = 0;
-        let maxDest = -1; // Higher is better for P1 (Towards 24)
+        let maxDest = -1; 
 
         let sources = [];
         if (this.bar[player] > 0) sources.push('BAR');
@@ -432,8 +427,6 @@ class Backgammon {
                 if (dest >= 1 && dest <= 24) {
                     let stack = this.board[dest];
                     if (stack.length === 1 && stack[0] === opponent) {
-                        // HIT FOUND
-                        // Prioritize hits deeper in board (Higher index for P1)
                         if (dest > maxDest) {
                             maxDest = dest;
                             bestRoll = r;
@@ -540,6 +533,8 @@ class Backgammon {
         this.dice = [];
         this.hintMove = null;
         ui.updateBoard();
+        ui.updateInfo(); 
+        
         ui.setPhase('ROLL');
         if (!this.isPvP && this.turn === P2) {
             setTimeout(() => {
@@ -579,19 +574,26 @@ class Backgammon {
     }
 
     getHint() {
-        if(this.turn !== P1 || this.moves.length === 0) return;
-        let best = ai.findBestMove(P1, true);
+        if (!this.isPvP && this.turn !== P1) return;
+        if (this.moves.length === 0) return;
+
+        let best = ai.findBestMove(this.turn, true);
         if(best) {
             this.hintMove = best;
             
-            // Risk Calc
             let tempBoard = JSON.parse(JSON.stringify(this.board));
-            let s = (best.from==='BAR')?0:best.from, d=(best.to==='OFF')?25:best.to;
-            if(s===0) {} else tempBoard[s].pop();
-            if(d!==25) { if(tempBoard[d].length===1 && tempBoard[d][0]!==P1) tempBoard[d]=[]; tempBoard[d].push(P1); }
+            let s = (best.from==='BAR')?(this.turn===P1?0:25):best.from;
+            let d = (best.to==='OFF')?(this.turn===P1?25:0):best.to;
             
-            let risk = ai.calculateRiskProbability(tempBoard, P1);
-            let reason = best.reason || "전략적으로 유리한 위치입니다.";
+            if(s===0 || s===25) {} else tempBoard[s].pop();
+            
+            if(d!==25 && d!==0) { 
+                if(tempBoard[d].length===1 && tempBoard[d][0]!==this.turn) tempBoard[d]=[]; 
+                tempBoard[d].push(this.turn); 
+            }
+            
+            let risk = ai.calculateRiskProbability(tempBoard, this.turn);
+            let reason = best.reason || "추천 수";
             
             ui.updateBoard();
             ui.toast(`💡 추천: ${best.from} → ${best.to}\n(위험도: ${risk}%) ${reason}`);
@@ -818,6 +820,7 @@ class AI {
         return count;
     }
 
+    // FIX: Risk calc including opponent re-entry from Bar
     calculateRiskProbability(tempBoard, player) {
         let opponent = (player === P1) ? P2 : P1;
         let hitCount = 0;
@@ -834,17 +837,37 @@ class AI {
     }
 
     canOpponentHit(board, opponent, blots, d1, d2) {
-        let sources = [];
-        if(game.bar[opponent]>0) sources.push('BAR');
-        else for(let i=1; i<=24; i++) if(board[i].includes(opponent)) sources.push(i);
+        let moves = [d1, d2];
+        if (d1 === d2) moves = [d1, d1, d1, d1]; 
 
-        let moves = [d1, d2, d1+d2];
+        // 1. Re-entry Hit Check
+        if (game.bar[opponent] > 0) {
+            let start = (opponent === P1) ? 0 : 25;
+            let dir = (opponent === P1) ? 1 : -1;
+            for (let m of moves) {
+                let dest = start + (m * dir);
+                if (blots.includes(dest)) return true;
+            }
+            return false; 
+        }
+
+        // 2. Normal Hit Check
+        let sources = [];
+        for(let i=1; i<=24; i++) if(board[i].includes(opponent)) sources.push(i);
+
         for(let src of sources) {
-            let start = (src==='BAR') ? (opponent===P1?0:25) : src;
-            let dir = (opponent===P1) ? 1 : -1;
+            let start = src;
+            let dir = (opponent === P1) ? 1 : -1;
+            
+            // Single Move Hit
             for(let m of moves) {
                 let dest = start + (m * dir);
                 if(blots.includes(dest)) return true;
+            }
+            // Combo Move Hit
+            if(moves.length >= 2) {
+                let comboDest = start + ((moves[0] + moves[1]) * dir);
+                if(blots.includes(comboDest)) return true;
             }
         }
         return false;
@@ -1005,9 +1028,7 @@ const renderer = {
 };
 
 renderer.canvas.addEventListener('click', e => {
-    // FIX: PvP Allows ANY player
     if (!game.isPvP && game.turn !== P1) return;
-    
     const rect = renderer.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -1113,8 +1134,6 @@ const ui = {
         ml.classList.toggle('show', game.moves.length > 0);
     },
     updateBoard: () => { renderer.draw(); },
-    
-    // FIX: PvP Phase Logic
     setPhase: (p) => {
         let isMyTurn = game.isPvP || (game.turn === P1);
         
@@ -1123,7 +1142,6 @@ const ui = {
         const btnUndo = document.getElementById('btn-undo');
         const msg = document.getElementById('msg-box');
 
-        // Allow roll if PvP OR (PvE and Human turn)
         btnRoll.disabled = !isMyTurn || (p !== 'ROLL');
         
         let iCanDouble = (game.cubeOwner === 0) || (game.cubeOwner === game.turn);
