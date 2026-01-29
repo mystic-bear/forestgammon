@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>숲속의 백개먼 (AI Double Logic Fix)</title>
+    <title>숲속의 백개먼 (Ver 16.1 - Perfect Reception)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -114,7 +114,8 @@
             width: 450px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
         }
         .menu-title { color: var(--bg-color); font-size: 2.5rem; margin-bottom: 20px; font-weight: bold; }
-        .menu-label { text-align: left; font-weight: bold; color: #555; margin: 15px 0 5px; }
+        
+        .menu-label { text-align: left; font-weight: bold; color: #555; margin: 15px 0 5px; cursor: pointer; user-select: none; }
         
         .toggle-group { display: flex; background: #eee; border-radius: 15px; padding: 4px; margin-bottom: 15px; }
         .toggle-opt { flex: 1; padding: 10px; border-radius: 12px; cursor: pointer; color: #777; transition: 0.2s; font-weight: bold; }
@@ -128,6 +129,9 @@
         .btn-mode:hover { border-color: #FF6F00; transform: translateX(5px); }
         .btn-mode .badge { background: #555; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-right: 10px; min-width: 45px; text-align:center;}
         .btn-mode.pvp { background: #E3F2FD; border-color: #90CAF9; }
+        
+        /* Stealth Mode Indicator */
+        .pvp-title.reception { color: #00E676 !important; text-shadow: 0 0 5px rgba(0,230,118,0.3); }
 
         .toast {
             position: fixed; top: 15%; left: 50%; transform: translateX(-50%);
@@ -157,11 +161,12 @@
                 <div class="toggle-opt" onclick="menu.selectScore(7, this)">7점</div>
             </div>
 
-            <div class="menu-label">🎮 대전 모드</div>
+            <div class="menu-label" onclick="menu.triggerSecret()">🎮 대전 모드</div>
+            
             <button class="btn-mode pvp" onclick="game.startPvP()">
                 <span style="font-size:1.5rem; margin-right:10px;">👥</span>
                 <div>
-                    <div style="font-weight:bold; font-size:1.1rem; color:#1565C0;">2인 대전 (PvP)</div>
+                    <div id="pvp-text" class="pvp-title" style="font-weight:bold; font-size:1.1rem; color:#1565C0;">2인 대전 (PvP)</div>
                     <div style="font-size:0.8rem; color:#555;">친구와 함께 플레이</div>
                 </div>
             </button>
@@ -271,7 +276,7 @@
 
 <script>
 /**
- * Forest Backgammon - Ver 11.0 (AI Double Logic Fixed)
+ * Forest Backgammon - Ver 16.1 (Priority Hit in Reception Mode)
  */
 
 const P1 = 1; // White (Rabbit)
@@ -284,6 +289,21 @@ const menu = {
         menu.targetScore = s;
         document.querySelectorAll('.toggle-opt').forEach(e => e.classList.remove('selected'));
         el.classList.add('selected');
+    },
+    // SECRET (Stealth)
+    secretClicks: 0,
+    secretTimer: null,
+    triggerSecret: () => {
+        menu.secretClicks++;
+        if (menu.secretTimer) clearTimeout(menu.secretTimer);
+        menu.secretTimer = setTimeout(() => { menu.secretClicks = 0; }, 3000);
+        if (menu.secretClicks === 4) {
+            game.receptionMode = !game.receptionMode;
+            menu.secretClicks = 0;
+            const txt = document.getElementById('pvp-text');
+            if(game.receptionMode) txt.classList.add('reception'); 
+            else txt.classList.remove('reception'); 
+        }
     }
 };
 
@@ -308,6 +328,7 @@ class Backgammon {
         this.history = [];
         this.isPvP = false;
         this.aiLevel = 0;
+        this.receptionMode = false;
         
         this.selectedPoint = -1;
         this.validDestinations = [];
@@ -365,8 +386,15 @@ class Backgammon {
 
     rollDice() {
         ui.playSound('dice');
-        const d1 = Math.floor(Math.random() * 6) + 1;
-        const d2 = Math.floor(Math.random() * 6) + 1;
+        let d1 = Math.floor(Math.random() * 6) + 1;
+        let d2 = Math.floor(Math.random() * 6) + 1;
+
+        // [SECRET] Reception Mode with Priority Logic
+        if (this.receptionMode && this.turn === P1) {
+            let magic = this.findWinningRoll(P1);
+            if (magic > 0) d1 = magic;
+        }
+
         this.dice = [d1, d2];
         this.moves = (d1===d2) ? [d1, d1, d1, d1] : [d1, d2];
         
@@ -384,6 +412,37 @@ class Backgammon {
                 setTimeout(() => ai.play(), 1000);
             }
         }
+    }
+
+    // UPDATED: Find hit closer to home (Index 24 for P1)
+    findWinningRoll(player) {
+        let opponent = (player === P1) ? P2 : P1;
+        let bestRoll = 0;
+        let maxDest = -1; // Higher is better for P1 (Towards 24)
+
+        let sources = [];
+        if (this.bar[player] > 0) sources.push('BAR');
+        else for (let i = 1; i <= 24; i++) if (this.board[i].includes(player)) sources.push(i);
+
+        for (let src of sources) {
+            let start = (src === 'BAR') ? (player === P1 ? 0 : 25) : src;
+            let dir = (player === P1) ? 1 : -1;
+            for (let r = 1; r <= 6; r++) {
+                let dest = start + (r * dir);
+                if (dest >= 1 && dest <= 24) {
+                    let stack = this.board[dest];
+                    if (stack.length === 1 && stack[0] === opponent) {
+                        // HIT FOUND
+                        // Prioritize hits deeper in board (Higher index for P1)
+                        if (dest > maxDest) {
+                            maxDest = dest;
+                            bestRoll = r;
+                        }
+                    }
+                }
+            }
+        }
+        return bestRoll;
     }
 
     getPossibleMoves(from) {
@@ -545,8 +604,9 @@ class Backgammon {
         if (!this.isPvP && this.turn !== P1) return; 
 
         if (this.isPvP) {
-            let opponentName = (this.turn === P1) ? "🐻 P2" : "🐰 P1";
-            ui.showModal('double', `${opponentName}, 더블을 받으시겠습니까?`);
+            let offerer = (this.turn === P1) ? "🐰 P1" : "🐻 P2";
+            let receiver = (this.turn === P1) ? "🐻 P2" : "🐰 P1";
+            ui.showModal('double', `${offerer}이(가) 더블을 제안했습니다.\n${receiver}, 받으시겠습니까?`);
         } else {
             let take = ai.decideTake(this.cube * 2);
             if (take) {
@@ -688,7 +748,7 @@ class AI {
         let score = 0; let reason = "";
         let isP1 = (player === P1);
         
-        if (to === 'OFF') return {score: 10000, reason: "승리를 위해 탈출합니다!"};
+        if (to === 'OFF') return {score: 99999, reason: "승리를 위해 탈출합니다!"};
 
         let destStack = game.board[to];
         let opponent = isP1 ? P2 : P1;
@@ -726,6 +786,38 @@ class AI {
         return false;
     }
 
+    calculateWinScore() {
+        let score = 50; 
+        let p1Pip = game.getPip(P1);
+        let p2Pip = game.getPip(P2);
+
+        let isBearingOff = (game.off[P2] > 0 || game.off[P1] > 0);
+        
+        if (isBearingOff) {
+            score += (game.off[P2] - game.off[P1]) * 20; 
+            score += (p1Pip - p2Pip) * 0.8;
+        } else {
+            score += (p1Pip - p2Pip) * 0.5;
+            let aiHome = this.countHomePoints(P2);
+            let p1Home = this.countHomePoints(P1);
+            score += (aiHome - p1Home) * 6;
+            
+            score += game.bar[P1] * 12;
+            score -= game.bar[P2] * 12;
+        }
+        return score;
+    }
+
+    countHomePoints(player) {
+        let count = 0;
+        let start = (player === P1) ? 19 : 1;
+        let end = (player === P1) ? 24 : 6;
+        for (let i = start; i <= end; i++) {
+            if (game.board[i].length >= 2 && game.board[i][0] === player) count++;
+        }
+        return count;
+    }
+
     calculateRiskProbability(tempBoard, player) {
         let opponent = (player === P1) ? P2 : P1;
         let hitCount = 0;
@@ -758,21 +850,31 @@ class AI {
         return false;
     }
 
-    // FIX: AI can only double if center(0) or it owns it(P2)
     shouldDouble() {
         if (game.cubeOwner !== 0 && game.cubeOwner !== P2) return false;
-        
         if (game.aiLevel === 1) return false;
-        let p1Pip = game.getPip(P1);
-        let p2Pip = game.getPip(P2);
-        return (p2Pip < p1Pip - 15) && (Math.random() > 0.7);
+        
+        if (game.aiLevel < 5) {
+            let lead = game.getPip(P1) - game.getPip(P2);
+            let threshold = (game.aiLevel === 2) ? 5 : (game.aiLevel === 3 ? 30 : 20);
+            return lead > threshold && Math.random() > 0.3;
+        }
+
+        let winScore = this.calculateWinScore();
+        return winScore >= 72 && Math.random() > 0.2;
     }
 
     decideTake(val) {
         if (game.aiLevel === 1) return true;
-        let p1Pip = game.getPip(P1);
-        let p2Pip = game.getPip(P2);
-        if (p2Pip > p1Pip + 40) return false;
+        if (game.aiLevel < 5) {
+            let lead = game.getPip(P2) - game.getPip(P1);
+            let limit = (game.aiLevel === 2) ? 60 : (game.aiLevel === 3) ? 20 : 40;
+            return lead < limit;
+        }
+
+        let winScore = this.calculateWinScore();
+        if (winScore < 22) return false;
+        if (winScore < 30) return Math.random() > 0.7;
         return true;
     }
 }
@@ -903,7 +1005,9 @@ const renderer = {
 };
 
 renderer.canvas.addEventListener('click', e => {
+    // FIX: PvP Allows ANY player
     if (!game.isPvP && game.turn !== P1) return;
+    
     const rect = renderer.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -1009,12 +1113,30 @@ const ui = {
         ml.classList.toggle('show', game.moves.length > 0);
     },
     updateBoard: () => { renderer.draw(); },
+    
+    // FIX: PvP Phase Logic
     setPhase: (p) => {
-        let myTurn = (game.turn === P1);
-        document.getElementById('btn-roll').disabled = !myTurn || (p!=='ROLL');
-        document.getElementById('btn-double').disabled = !myTurn || game.crawford || (game.cubeOwner === P2); 
-        document.getElementById('btn-undo').disabled = !myTurn;
-        document.getElementById('msg-box').innerText = myTurn ? (p==='ROLL'?"주사위를 굴리세요":"말을 움직이세요") : "상대 턴 진행 중...";
+        let isMyTurn = game.isPvP || (game.turn === P1);
+        
+        const btnRoll = document.getElementById('btn-roll');
+        const btnDouble = document.getElementById('btn-double');
+        const btnUndo = document.getElementById('btn-undo');
+        const msg = document.getElementById('msg-box');
+
+        // Allow roll if PvP OR (PvE and Human turn)
+        btnRoll.disabled = !isMyTurn || (p !== 'ROLL');
+        
+        let iCanDouble = (game.cubeOwner === 0) || (game.cubeOwner === game.turn);
+        btnDouble.disabled = !isMyTurn || !iCanDouble || game.crawford || (p !== 'ROLL');
+        
+        btnUndo.disabled = !isMyTurn;
+
+        if (isMyTurn) {
+            let playerIcon = (game.turn === P1) ? "🐰 P1" : "🐻 P2";
+            msg.innerText = (p === 'ROLL') ? `${playerIcon}: 주사위를 굴리세요` : `${playerIcon}: 말을 움직이세요`;
+        } else {
+            msg.innerText = "상대 턴 진행 중...";
+        }
     },
     toggleRollBtn: (en) => document.getElementById('btn-roll').disabled = !en,
     toggleDoubleBtn: (en) => document.getElementById('btn-double').disabled = !en,
